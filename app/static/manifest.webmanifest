@@ -1,0 +1,11 @@
+{
+  "name": "Compagno di viaggio",
+  "short_name": "Compagno",
+  "description": "Un assistente che mantiene il filo delle cose che contano.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3eee5",
+  "theme_color": "#efe9de",
+  "icons": [{"src":"/static/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}
+

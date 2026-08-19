@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#efe9de">
+  <meta name="description" content="Un compagno di viaggio che ricorda ciò che conta, senza trasformarlo in una lista.">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/styles.css">
+  <title>Compagno di viaggio</title>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Compagno di viaggio">
+        <span class="brand-mark">↗</span>
+        <span>Compagno di viaggio</span>
+      </a>
+      <button class="quiet-button" id="stateToggle" aria-expanded="false" aria-controls="statePanel">Cosa ricordo <span id="activeCount" class="count">0</span></button>
+    </header>
+
+    <main class="conversation">
+      <section class="intro" id="intro">
+        <p class="eyebrow">Uno spazio per fare il punto</p>
+        <h1>Cosa hai in mente?</h1>
+        <p>Parlane come faresti con qualcuno che conosce già il contesto. Terrò io il filo.</p>
+        <div class="prompts" aria-label="Esempi">
+          <button data-prompt="Voglio correre tre volte alla settimana.">Voglio riprendere un ritmo</button>
+          <button data-prompt="Come stanno andando le cose?">Fammi il punto</button>
+          <button data-prompt="Ho una nuova scadenza da incastrare.">Ho qualcosa da incastrare</button>
+        </div>
+      </section>
+
+      <section class="checkin-stack" id="checkins" aria-live="polite"></section>
+      <section class="messages" id="messages" aria-live="polite" aria-label="Conversazione"></section>
+
+      <form class="composer" id="chatForm">
+        <label class="sr-only" for="messageInput">Messaggio</label>
+        <textarea id="messageInput" rows="1" maxlength="5000" placeholder="Scrivi ciò che hai in mente…" required></textarea>
+        <button class="send" type="submit" aria-label="Invia"><span>↑</span></button>
+        <p class="composer-note">Invio per mandare · Maiuscolo + Invio per andare a capo</p>
+      </form>
+    </main>
+  </div>
+
+  <div class="scrim" id="scrim" hidden></div>
+  <aside class="state-panel" id="statePanel" aria-hidden="true">
+    <header>
+      <div>
+        <p class="eyebrow">Memoria operativa</p>
+        <h2>Cosa ho capito</h2>
+      </div>
+      <button class="icon-button" id="stateClose" aria-label="Chiudi">×</button>
+    </header>
+    <p class="panel-copy">Questa è una vista di sicurezza: puoi correggere ciò che ho interpretato male.</p>
+    <nav class="filters" id="filters" aria-label="Filtra elementi">
+      <button class="active" data-filter="current">In corso</button>
+      <button data-filter="all">Tutto</button>
+    </nav>
+    <div class="item-list" id="itemList"></div>
+  </aside>
+
+  <dialog id="editDialog">
+    <form id="editForm" method="dialog">
+      <div class="dialog-head"><h2>Correggi ciò che ricordo</h2><button class="icon-button" value="cancel" formnovalidate>×</button></div>
+      <input type="hidden" id="editId">
+      <label>Titolo<input id="editTitle" required maxlength="200"></label>
+      <div class="field-row">
+        <label>Stato<select id="editStatus"><option value="active">Attivo</option><option value="completed">Completato</option><option value="suspended">Sospeso</option><option value="waiting">In attesa</option><option value="unplanned">Non pianificato</option><option value="abandoned">Abbandonato</option></select></label>
+        <label>Scadenza<input id="editDue" type="date"></label>
+      </div>
+      <label>Perché conta<textarea id="editMotivation" rows="3"></textarea></label>
+      <div class="dialog-actions"><button type="button" class="danger" id="deleteItem">Elimina</button><span></span><button value="cancel" formnovalidate>Annulla</button><button type="submit" class="primary">Salva</button></div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
+

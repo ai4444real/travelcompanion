@@ -1,0 +1,159 @@
+from __future__ import annotations
+
+import json
+from datetime import UTC, datetime
+from typing import Any
+
+from app.db import Database, json_dump, new_id, now_iso, row_to_item
+from app.models import Item, ItemKind, ItemStatus
+
+
+class Repository:
+    def __init__(self, db: Database):
+        self.db = db
+
+    def list_items(self, statuses: list[str] | None = None) -> list[Item]:
+        sql = "SELECT * FROM items"
+        params: list[Any] = []
+        if statuses:
+            sql += f" WHERE status IN ({','.join('?' for _ in statuses)})"
+            params.extend(statuses)
+        sql += " ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'waiting' THEN 1 WHEN 'unplanned' THEN 2 ELSE 3 END, due_at IS NULL, due_at, updated_at DESC"
+        with self.db.connect() as conn:
+            return [row_to_item(row) for row in conn.execute(sql, params).fetchall()]
+
+    def get_item(self, item_id: str) -> Item | None:
+        with self.db.connect() as conn:
+            row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+        return row_to_item(row) if row else None
+
+    def find_item(self, reference: str) -> Item | None:
+        normalized = reference.strip().lower()
+        items = self.list_items()
+        exact = next((item for item in items if item.title.lower() == normalized), None)
+        if exact:
+            return exact
+        candidates = [item for item in items if normalized in item.title.lower() or item.title.lower() in normalized]
+        return candidates[0] if len(candidates) == 1 else None
+
+    def create_item(self, data: dict[str, Any], origin: str, source_message_id: str | None) -> Item:
+        timestamp = now_iso()
+        item_id = data.get("id") or new_id("item")
+        fields = {
+            "id": item_id,
+            "title": data["title"].strip(),
+            "description": data.get("description"),
+            "kind": data.get("kind", ItemKind.POSSIBILITY.value),
+            "status": data.get("status", ItemStatus.ACTIVE.value),
+            "due_at": data.get("due_at"),
+            "recurrence_json": json_dump(data["recurrence"]) if data.get("recurrence") else None,
+            "target_quantity": data.get("target_quantity"),
+            "target_unit": data.get("target_unit"),
+            "estimate_minutes": data.get("estimate_minutes"),
+            "progress_value": data.get("progress_value"),
+            "progress_total": data.get("progress_total"),
+            "importance": data.get("importance"),
+            "consequences": data.get("consequences"),
+            "flexibility": data.get("flexibility"),
+            "motivation": data.get("motivation"),
+            "context": data.get("context"),
+            "user_assessment": data.get("user_assessment"),
+            "confidence": data.get("confidence", 1.0),
+            "checkin_cooldown_days": data.get("checkin_cooldown_days", 3),
+            "last_checked_at": data.get("last_checked_at"),
+            "suspended_until": data.get("suspended_until"),
+            "created_at": timestamp,
+            "updated_at": timestamp,
+        }
+        columns = ", ".join(fields)
+        placeholders = ", ".join("?" for _ in fields)
+        with self.db.connect() as conn:
+            conn.execute(f"INSERT INTO items ({columns}) VALUES ({placeholders})", tuple(fields.values()))
+            self._audit(conn, "item", item_id, "create", origin, source_message_id, None, fields)
+        return self.get_item(item_id)  # type: ignore[return-value]
+
+    def update_item(self, item_id: str, changes: dict[str, Any], origin: str, source_message_id: str | None) -> Item:
+        before = self.get_item(item_id)
+        if not before:
+            raise KeyError(item_id)
+        allowed = set(Item.model_fields) - {"id", "created_at", "updated_at"}
+        clean = {key: value for key, value in changes.items() if key in allowed}
+        if "recurrence" in clean:
+            clean["recurrence_json"] = json_dump(clean.pop("recurrence")) if clean["recurrence"] else None
+        clean["updated_at"] = now_iso()
+        assignments = ", ".join(f"{key}=?" for key in clean)
+        with self.db.connect() as conn:
+            conn.execute(f"UPDATE items SET {assignments} WHERE id=?", (*clean.values(), item_id))
+            after_row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+            after = row_to_item(after_row).model_dump(mode="json")
+            self._audit(conn, "item", item_id, "update", origin, source_message_id, before.model_dump(mode="json"), after)
+        return self.get_item(item_id)  # type: ignore[return-value]
+
+    def delete_item(self, item_id: str, origin: str = "manual") -> None:
+        before = self.get_item(item_id)
+        if not before:
+            raise KeyError(item_id)
+        with self.db.connect() as conn:
+            self._audit(conn, "item", item_id, "delete", origin, None, before.model_dump(mode="json"), None)
+            conn.execute("DELETE FROM items WHERE id=?", (item_id,))
+
+    def add_relation(self, source_id: str, target_id: str, relation_type: str, origin: str, source_message_id: str | None) -> None:
+        relation_id = new_id("rel")
+        data = {"source_item_id": source_id, "target_item_id": target_id, "relation_type": relation_type}
+        with self.db.connect() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO relations(id, source_item_id, target_item_id, relation_type, created_at) VALUES(?,?,?,?,?)",
+                (relation_id, source_id, target_id, relation_type, now_iso()),
+            )
+            self._audit(conn, "relation", relation_id, "create", origin, source_message_id, None, data)
+
+    def list_relations(self) -> list[dict[str, Any]]:
+        with self.db.connect() as conn:
+            return [dict(row) for row in conn.execute("SELECT * FROM relations ORDER BY created_at").fetchall()]
+
+    def record_progress(self, item_id: str, value: float | None, total: float | None, unit: str | None, note: str | None, source_message_id: str | None) -> Item:
+        event_id = new_id("progress")
+        with self.db.connect() as conn:
+            conn.execute(
+                "INSERT INTO progress_events(id,item_id,value,total,unit,note,happened_at,source_message_id) VALUES(?,?,?,?,?,?,?,?)",
+                (event_id, item_id, value, total, unit, note, now_iso(), source_message_id),
+            )
+        changes = {key: val for key, val in {"progress_value": value, "progress_total": total}.items() if val is not None}
+        return self.update_item(item_id, changes, "conversation", source_message_id)
+
+    def add_message(self, role: str, content: str, metadata: dict[str, Any] | None = None) -> str:
+        message_id = new_id("msg")
+        with self.db.connect() as conn:
+            conn.execute("INSERT INTO messages(id,role,content,created_at,metadata_json) VALUES(?,?,?,?,?)", (message_id, role, content, now_iso(), json_dump(metadata) if metadata else None))
+        return message_id
+
+    def recent_messages(self, limit: int = 20) -> list[dict[str, Any]]:
+        with self.db.connect() as conn:
+            rows = conn.execute("SELECT * FROM messages ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+        return [dict(row) for row in reversed(rows)]
+
+    def create_checkin(self, item_id: str | None, message: str, reason: str, score: float) -> dict[str, Any]:
+        checkin_id = new_id("checkin")
+        timestamp = now_iso()
+        with self.db.connect() as conn:
+            conn.execute("INSERT INTO checkins(id,item_id,message,reason,score,status,created_at) VALUES(?,?,?,?,?,'pending',?)", (checkin_id, item_id, message, reason, score, timestamp))
+        return {"id": checkin_id, "item_id": item_id, "message": message, "reason": reason, "score": score, "status": "pending", "created_at": timestamp}
+
+    def pending_checkins(self) -> list[dict[str, Any]]:
+        with self.db.connect() as conn:
+            return [dict(row) for row in conn.execute("SELECT * FROM checkins WHERE status='pending' ORDER BY score DESC, created_at").fetchall()]
+
+    def deliver_checkin(self, checkin_id: str) -> None:
+        with self.db.connect() as conn:
+            conn.execute("UPDATE checkins SET status='delivered', delivered_at=? WHERE id=?", (now_iso(), checkin_id))
+
+    def audit_log(self, limit: int = 100) -> list[dict[str, Any]]:
+        with self.db.connect() as conn:
+            return [dict(row) for row in conn.execute("SELECT * FROM audit_log ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()]
+
+    @staticmethod
+    def _audit(conn: Any, entity_type: str, entity_id: str, action: str, origin: str, source_message_id: str | None, before: Any, after: Any) -> None:
+        conn.execute(
+            "INSERT INTO audit_log(id,entity_type,entity_id,action,origin,source_message_id,before_json,after_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+            (new_id("audit"), entity_type, entity_id, action, origin, source_message_id, json_dump(before) if before is not None else None, json_dump(after) if after is not None else None, now_iso()),
+        )

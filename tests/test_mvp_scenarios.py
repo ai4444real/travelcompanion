@@ -1,0 +1,105 @@
+from __future__ import annotations
+
+import asyncio
+from datetime import UTC, datetime, timedelta
+
+from app.ai import LocalInterpreter
+from app.db import Database
+from app.domain import ActionExecutor
+from app.models import ActionType
+from app.monitor import Monitor
+from app.repository import Repository
+
+
+def setup(tmp_path):
+    db = Database(tmp_path / "test.db")
+    db.initialize()
+    repo = Repository(db)
+    return repo, ActionExecutor(repo), LocalInterpreter()
+
+
+def converse(repo, executor, interpreter, text):
+    message_id = repo.add_message("user", text)
+    result = asyncio.run(interpreter.interpret(text, repo.list_items(), repo.recent_messages()))
+    changed = executor.execute(result.actions, message_id)
+    repo.add_message("assistant", result.reply)
+    return result, changed
+
+
+def test_case_1_add_routine(tmp_path):
+    repo, executor, interpreter = setup(tmp_path)
+    _, changed = converse(repo, executor, interpreter, "Voglio correre tre volte alla settimana.")
+    assert len(changed) == 1
+    assert changed[0].kind == "routine"
+    assert changed[0].recurrence == {"period": "week", "frequency": 3}
+
+
+def test_case_2_new_commitment_surfaces_conflict(tmp_path):
+    repo, executor, interpreter = setup(tmp_path)
+    due = (datetime.now(UTC) + timedelta(days=4)).isoformat()
+    repo.create_item({"title": "finire il libro", "kind": "commitment", "due_at": due, "estimate_minutes": 960}, "test", None)
+    result, changed = converse(repo, executor, interpreter, "Voglio preparare la lezione entro venerdì. Mi serve un giorno.")
+    assert changed
+    assert any(action.type == ActionType.REQUEST_CLARIFICATION for action in result.actions)
+    assert "attrito" in result.reply
+
+
+def test_case_3_relative_priority(tmp_path):
+    repo, executor, interpreter = setup(tmp_path)
+    book = repo.create_item({"title": "libro", "kind": "possibility"}, "test", None)
+    target = repo.create_item({"title": "B", "kind": "commitment"}, "test", None)
+    result, _ = converse(repo, executor, interpreter, "Il libro mettilo dopo B.")
+    assert result.actions[0].type == ActionType.REORDER_ITEM
+    relations = repo.list_relations()
+    assert relations[0]["source_item_id"] == book.id
+    assert relations[0]["target_item_id"] == target.id
+    assert relations[0]["relation_type"] == "after"
+
+
+def test_case_4_progress(tmp_path):
+    repo, executor, interpreter = setup(tmp_path)
+    book = repo.create_item({"title": "libro"}, "test", None)
+    converse(repo, executor, interpreter, "Del libro ho fatto tre delle cinque giornate previste.")
+    updated = repo.get_item(book.id)
+    assert updated.progress_value == 3
+    assert updated.progress_total == 5
+
+
+def test_case_5_monitor_intercepts_pressure(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    due = (datetime.now(UTC) + timedelta(days=1)).isoformat()
+    repo.create_item({"title": "preparare la lezione", "kind": "commitment", "due_at": due, "progress_value": 1, "progress_total": 4, "importance": "alta"}, "test", None)
+    created = Monitor(repo).run()
+    assert len(created) == 1
+    assert "realistico" in created[0]["message"]
+
+
+def test_case_6_renegotiation_does_not_abandon(tmp_path):
+    repo, executor, interpreter = setup(tmp_path)
+    book = repo.create_item({"title": "libro"}, "test", None)
+    result, _ = converse(repo, executor, interpreter, "Il libro non ce la farò mai.")
+    assert repo.get_item(book.id).status == "active"
+    assert any(action.type == ActionType.REQUEST_CLARIFICATION for action in result.actions)
+
+
+def test_case_7_suspension_stops_checkins(tmp_path):
+    repo, executor, interpreter = setup(tmp_path)
+    bass = repo.create_item({"title": "basso", "created_at": (datetime.now(UTC)-timedelta(days=20)).isoformat()}, "test", None)
+    converse(repo, executor, interpreter, "Per questo mese lasciamo perdere il basso.")
+    assert repo.get_item(bass.id).status == "suspended"
+    assert Monitor(repo).run() == []
+
+
+def test_case_8_intelligent_silence(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    repo.create_item({"title": "leggere un romanzo", "kind": "possibility"}, "test", None)
+    assert Monitor(repo).run() == []
+
+
+def test_audit_records_before_and_after(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    item = repo.create_item({"title": "fatture"}, "test", None)
+    repo.update_item(item.id, {"importance": "alta"}, "manual", None)
+    log = repo.audit_log()
+    assert len(log) == 2
+    assert log[0]["before_json"] and log[0]["after_json"]

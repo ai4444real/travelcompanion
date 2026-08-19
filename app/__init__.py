@@ -1,0 +1,2 @@
+"""Travel Companion MVP."""
+
