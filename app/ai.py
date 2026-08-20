@@ -18,6 +18,10 @@ Non inventare decisioni: dubbio o pessimismo non equivalgono ad abbandono. Chied
 se evitano una modifica sbagliata. Usa ID esistenti. Le date sono ISO 8601. Rispondi in italiano.
 Per modifiche importanti e ambigue usa request_clarification. La categoria è un'etichetta libera
 definita dall'utente: riusala quando il contesto la rende chiara, senza inventare tassonomie.
+Quando l'utente riferisce qualcosa che ha fatto, usa record_activity. Usa occurrence per un evento
+individuale e summary per un totale approssimativo su un periodo. Registra solo quantità e unità
+esplicitamente dette; non chiedere dettagli mancanti se non servono a una decisione. source_type è
+explicit per dichiarazioni dell'utente. Non confondere la cronologia attività con l'audit tecnico.
 Non trasformarti in un task manager."""
 
 
@@ -66,7 +70,13 @@ INTERPRETATION_SCHEMA: dict[str, Any] = {
                             "assessment": {"type": "string"},
                             "target_item_id": {"type": "string"},
                             "relation": {"type": "string"},
-                            "relation_type": {"type": "string"}
+                            "relation_type": {"type": "string"},
+                            "record_type": {"type": "string", "enum": ["occurrence", "summary"]},
+                            "period_start": {"type": "string"},
+                            "period_end": {"type": "string"},
+                            "count": {"type": "number"},
+                            "quantity": {"type": "number"},
+                            "source_type": {"type": "string", "enum": ["explicit", "evidence", "inference"]}
                         }
                     },
                     "confidence": {"type": "number"},
@@ -96,11 +106,12 @@ class OpenAIInterpreter(Interpreter):
     async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]]) -> Interpretation:
         state = [item.model_dump(mode="json", exclude_none=True) for item in items]
         context = [{"role": msg["role"], "content": msg["content"]} for msg in recent_messages[-12:]]
+        current_time = datetime.now(UTC).isoformat()
         payload = {
             "model": self.model,
             "store": False,
             "instructions": SYSTEM_PROMPT,
-            "input": context + [{"role": "user", "content": f"STATO:\n{json.dumps(state, ensure_ascii=False)}\n\nMESSAGGIO:\n{message}"}],
+            "input": context + [{"role": "user", "content": f"DATA_ORA_CORRENTE: {current_time}\n\nSTATO:\n{json.dumps(state, ensure_ascii=False)}\n\nMESSAGGIO:\n{message}"}],
             "text": {"format": {"type": "json_schema", "name": "travel_companion_interpretation", "strict": False, "schema": INTERPRETATION_SCHEMA}},
         }
         async with httpx.AsyncClient(timeout=60) as client:

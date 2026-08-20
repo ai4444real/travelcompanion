@@ -46,6 +46,9 @@ class ActionExecutor:
             return self.repository.record_progress(action.item_id, action.data.get("value"), action.data.get("total"), action.data.get("unit"), action.data.get("note"), source_message_id)
         if action.type == ActionType.RECORD_USER_ASSESSMENT:
             return self.repository.update_item(action.item_id, {"user_assessment": action.data.get("assessment")}, "conversation", source_message_id)
+        if action.type == ActionType.RECORD_ACTIVITY:
+            self.repository.record_activity(action.item_id, action.data, source_message_id)
+            return self.repository.get_item(action.item_id)
         if action.type == ActionType.REORDER_ITEM:
             target_id = action.data.get("target_item_id")
             relation = action.data.get("relation", "after")

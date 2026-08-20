@@ -63,6 +63,23 @@ CREATE TABLE IF NOT EXISTS progress_events (
     source_message_id TEXT
 );
 
+CREATE TABLE IF NOT EXISTS activity_records (
+    id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    record_type TEXT NOT NULL CHECK(record_type IN ('occurrence', 'summary')),
+    period_start TEXT NOT NULL,
+    period_end TEXT NOT NULL,
+    count REAL,
+    quantity REAL,
+    unit TEXT,
+    source_type TEXT NOT NULL DEFAULT 'explicit' CHECK(source_type IN ('explicit', 'evidence', 'inference')),
+    confidence REAL NOT NULL DEFAULT 1,
+    note TEXT,
+    source_message_id TEXT,
+    recorded_at TEXT NOT NULL,
+    voided_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
     role TEXT NOT NULL,
@@ -113,6 +130,7 @@ CREATE INDEX IF NOT EXISTS idx_items_status_due ON items(status, due_at);
 CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_checkins_status ON checkins(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_ai_usage_created ON ai_usage(created_at);
+CREATE INDEX IF NOT EXISTS idx_activity_item_period ON activity_records(item_id, period_start, period_end);
 """
 
 

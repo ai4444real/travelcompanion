@@ -123,6 +123,46 @@ class Repository:
         changes = {key: val for key, val in {"progress_value": value, "progress_total": total}.items() if val is not None}
         return self.update_item(item_id, changes, "conversation", source_message_id)
 
+    def record_activity(self, item_id: str, data: dict[str, Any], source_message_id: str | None) -> dict[str, Any]:
+        if not self.get_item(item_id):
+            raise KeyError(item_id)
+        record_type = data.get("record_type", "occurrence")
+        if record_type not in {"occurrence", "summary"}:
+            record_type = "occurrence"
+        source_type = data.get("source_type", "explicit")
+        if source_type not in {"explicit", "evidence", "inference"}:
+            source_type = "explicit"
+        period_start = data.get("period_start") or now_iso()
+        period_end = data.get("period_end") or period_start
+        record_id = new_id("activity")
+        values = {
+            "id": record_id, "item_id": item_id, "record_type": record_type,
+            "period_start": period_start, "period_end": period_end,
+            "count": data.get("count", 1 if record_type == "occurrence" else None),
+            "quantity": data.get("quantity"), "unit": data.get("unit"),
+            "source_type": source_type, "confidence": float(data.get("confidence", 1.0)),
+            "note": data.get("note"), "source_message_id": source_message_id,
+            "recorded_at": now_iso(), "voided_at": None,
+        }
+        with self.db.connect() as conn:
+            conn.execute(
+                """INSERT INTO activity_records(id,item_id,record_type,period_start,period_end,count,quantity,unit,source_type,confidence,note,source_message_id,recorded_at,voided_at)
+                VALUES(:id,:item_id,:record_type,:period_start,:period_end,:count,:quantity,:unit,:source_type,:confidence,:note,:source_message_id,:recorded_at,:voided_at)""",
+                values,
+            )
+            self._audit(conn, "activity_record", record_id, "create", "conversation", source_message_id, None, values)
+        return values
+
+    def list_activity_records(self, item_id: str | None = None) -> list[dict[str, Any]]:
+        sql = "SELECT * FROM activity_records WHERE voided_at IS NULL"
+        params: list[Any] = []
+        if item_id:
+            sql += " AND item_id=?"
+            params.append(item_id)
+        sql += " ORDER BY period_start, recorded_at"
+        with self.db.connect() as conn:
+            return [dict(row) for row in conn.execute(sql, params).fetchall()]
+
     def add_message(self, role: str, content: str, metadata: dict[str, Any] | None = None) -> str:
         message_id = new_id("msg")
         with self.db.connect() as conn:
@@ -195,6 +235,7 @@ class Repository:
             "items": "created_at, id",
             "relations": "created_at, id",
             "progress_events": "happened_at, id",
+            "activity_records": "period_start, recorded_at, id",
             "messages": "created_at, id",
             "checkins": "created_at, id",
             "audit_log": "created_at, id",

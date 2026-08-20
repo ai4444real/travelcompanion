@@ -34,6 +34,7 @@ class ActionType(StrEnum):
     UPDATE_ESTIMATE = "update_estimate"
     RECORD_PROGRESS = "record_progress"
     RECORD_USER_ASSESSMENT = "record_user_assessment"
+    RECORD_ACTIVITY = "record_activity"
     REQUEST_CLARIFICATION = "request_clarification"
     SEND_CHECKIN = "send_checkin"
     NO_ACTION = "no_action"
@@ -112,3 +113,20 @@ class ItemPatch(BaseModel):
     user_assessment: str | None = None
     checkin_cooldown_days: int | None = None
     suspended_until: datetime | None = None
+
+
+class ActivityRecord(BaseModel):
+    id: str
+    item_id: str
+    record_type: str
+    period_start: datetime
+    period_end: datetime
+    count: float | None = None
+    quantity: float | None = None
+    unit: str | None = None
+    source_type: str = "explicit"
+    confidence: float = 1.0
+    note: str | None = None
+    source_message_id: str | None = None
+    recorded_at: datetime
+    voided_at: datetime | None = None

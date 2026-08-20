@@ -203,7 +203,7 @@ def test_raw_snapshot_exposes_app_tables_without_configuration(tmp_path):
     repo, _, _ = setup(tmp_path)
     repo.create_item({"title": "Fatture"}, "test", None)
     snapshot = repo.raw_snapshot()
-    assert set(snapshot) == {"items", "relations", "progress_events", "messages", "checkins", "audit_log", "ai_usage"}
+    assert set(snapshot) == {"items", "relations", "progress_events", "activity_records", "messages", "checkins", "audit_log", "ai_usage"}
     assert snapshot["items"][0]["title"] == "Fatture"
     assert "OPENAI_API_KEY" not in str(snapshot)
 
@@ -214,3 +214,34 @@ def test_free_form_category_is_persisted_and_editable(tmp_path):
     assert item.category == "Amministrazione scuola"
     updated = repo.update_item(item.id, {"category": "Amministrazione associazione"}, "manual", None)
     assert updated.category == "Amministrazione associazione"
+
+
+def test_individual_activity_keeps_optional_distance(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Correre", "kind": "routine"}, "test", None)
+    message_id = repo.add_message("user", "Ho corso 6 km oggi")
+    executor.execute([Action(type=ActionType.RECORD_ACTIVITY, item_id=item.id, data={
+        "record_type": "occurrence", "period_start": "2026-08-20T07:00:00+02:00",
+        "period_end": "2026-08-20T07:00:00+02:00", "count": 1, "quantity": 6,
+        "unit": "km", "source_type": "explicit", "note": "Ho corso 6 km oggi",
+    })], message_id)
+    records = repo.list_activity_records(item.id)
+    assert records[0]["count"] == 1
+    assert records[0]["quantity"] == 6
+    assert records[0]["unit"] == "km"
+
+
+def test_approximate_activity_summary_does_not_invent_dates_or_distance(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Correre", "kind": "routine"}, "test", None)
+    message_id = repo.add_message("user", "Questa settimana ho corso due volte")
+    executor.execute([Action(type=ActionType.RECORD_ACTIVITY, item_id=item.id, data={
+        "record_type": "summary", "period_start": "2026-08-17T00:00:00+02:00",
+        "period_end": "2026-08-23T23:59:59+02:00", "count": 2,
+        "source_type": "explicit", "note": "Questa settimana ho corso due volte",
+    })], message_id)
+    record = repo.list_activity_records(item.id)[0]
+    assert record["record_type"] == "summary"
+    assert record["count"] == 2
+    assert record["quantity"] is None
+    assert record["period_start"].startswith("2026-08-17")

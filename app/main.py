@@ -127,6 +127,11 @@ async def relations() -> list[dict]:
     return repository.list_relations()
 
 
+@app.get("/api/activities")
+async def activities(item_id: str | None = None) -> list[dict]:
+    return repository.list_activity_records(item_id)
+
+
 @app.get("/api/checkins")
 async def checkins() -> list[dict]:
     return repository.pending_checkins()
