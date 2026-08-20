@@ -79,7 +79,8 @@ class Repository:
         allowed = set(Item.model_fields) - {"id", "created_at", "updated_at"}
         clean = {key: value for key, value in changes.items() if key in allowed}
         if "recurrence" in clean:
-            clean["recurrence_json"] = json_dump(clean.pop("recurrence")) if clean["recurrence"] else None
+            recurrence = clean.pop("recurrence")
+            clean["recurrence_json"] = json_dump(recurrence) if recurrence else None
         clean["updated_at"] = now_iso()
         assignments = ", ".join(f"{key}=?" for key in clean)
         with self.db.connect() as conn:
