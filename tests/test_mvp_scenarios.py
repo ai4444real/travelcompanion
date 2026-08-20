@@ -7,6 +7,7 @@ from app.ai import LocalInterpreter
 from app.db import Database
 from app.domain import ActionExecutor
 from app.models import ActionType
+from app.models import Action
 from app.monitor import Monitor
 from app.repository import Repository
 
@@ -103,3 +104,14 @@ def test_audit_records_before_and_after(tmp_path):
     log = repo.audit_log()
     assert len(log) == 2
     assert log[0]["before_json"] and log[0]["after_json"]
+
+
+def test_provider_vocabulary_is_normalized_before_persistence(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    message_id = repo.add_message("user", "Voglio leggere un libro")
+    changed = executor.execute(
+        [Action(type=ActionType.CREATE_ITEM, data={"title": "leggere un libro", "status": "open", "kind": "goal"})],
+        message_id,
+    )
+    assert changed[0].status == "active"
+    assert changed[0].kind == "commitment"

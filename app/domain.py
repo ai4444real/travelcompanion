@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.models import Action, ActionType, Item, ItemStatus
+from app.models import Action, ActionType, Item, ItemKind, ItemStatus
 from app.repository import Repository
 
 
@@ -26,7 +26,7 @@ class ActionExecutor:
         if action.type == ActionType.CREATE_ITEM:
             if not action.data.get("title"):
                 return None
-            return self.repository.create_item(action.data, "conversation", source_message_id)
+            return self.repository.create_item(self._normalize_item_data(action.data), "conversation", source_message_id)
         if not action.item_id or not self.repository.get_item(action.item_id):
             return None
         if action.type == ActionType.UPDATE_ITEM:
@@ -58,3 +58,29 @@ class ActionExecutor:
                 self.repository.add_relation(action.item_id, target_id, action.data.get("relation_type", "related"), "conversation", source_message_id)
             return self.repository.get_item(action.item_id)
         return None
+
+    @staticmethod
+    def _normalize_item_data(data: dict) -> dict:
+        """Keep provider vocabulary outside the canonical domain model."""
+        normalized = dict(data)
+        status_aliases = {
+            "open": ItemStatus.ACTIVE.value,
+            "paused": ItemStatus.SUSPENDED.value,
+            "done": ItemStatus.COMPLETED.value,
+            "pending": ItemStatus.WAITING.value,
+            "backlog": ItemStatus.UNPLANNED.value,
+        }
+        kind_aliases = {
+            "task": ItemKind.COMMITMENT.value,
+            "goal": ItemKind.COMMITMENT.value,
+            "habit": ItemKind.ROUTINE.value,
+            "change": ItemKind.INTRODUCTION.value,
+            "backlog": ItemKind.POSSIBILITY.value,
+        }
+        status = str(normalized.get("status", ItemStatus.ACTIVE.value)).lower()
+        kind = str(normalized.get("kind", ItemKind.POSSIBILITY.value)).lower()
+        valid_statuses = {entry.value for entry in ItemStatus}
+        valid_kinds = {entry.value for entry in ItemKind}
+        normalized["status"] = status_aliases.get(status, status if status in valid_statuses else ItemStatus.ACTIVE.value)
+        normalized["kind"] = kind_aliases.get(kind, kind if kind in valid_kinds else ItemKind.POSSIBILITY.value)
+        return normalized
