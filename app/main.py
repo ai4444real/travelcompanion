@@ -63,6 +63,11 @@ async def index() -> FileResponse:
     return FileResponse(static_dir / "index.html")
 
 
+@app.get("/data", include_in_schema=False)
+async def data_view() -> FileResponse:
+    return FileResponse(static_dir / "data.html")
+
+
 @app.get("/manifest.webmanifest", include_in_schema=False)
 async def manifest() -> FileResponse:
     return FileResponse(static_dir / "manifest.webmanifest", media_type="application/manifest+json")

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#efe9de">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/data.css">
+  <title>Dati · Compagno di viaggio</title>
+</head>
+<body>
+  <header class="data-head">
+    <div><p>Vista umana del database</p><h1>I dati del compagno</h1></div>
+    <a href="/">Torna alla conversazione</a>
+  </header>
+  <main>
+    <section class="controls" aria-label="Filtri">
+      <label>Cerca<input id="search" type="search" placeholder="Testo, stato, data, ID…"></label>
+      <label>Categoria<select id="category"><option value="">Tutte le categorie</option></select></label>
+      <button id="refresh">Aggiorna</button>
+    </section>
+    <nav class="tabs" id="tabs" aria-label="Tabelle"></nav>
+    <section class="table-card">
+      <header><div><h2 id="tableTitle">Caricamento…</h2><p id="rowCount"></p></div><button id="jsonOpen">Vedi JSON completo</button></header>
+      <div class="table-wrap"><table><thead id="tableHead"></thead><tbody id="tableBody"></tbody></table></div>
+      <p class="empty" id="empty" hidden>Nessuna riga corrisponde ai filtri.</p>
+    </section>
+  </main>
+  <dialog id="jsonDialog">
+    <header><div><p>Snapshot integrale</p><h2>JSON completo</h2></div><button id="jsonClose" aria-label="Chiudi">×</button></header>
+    <div class="json-actions"><button id="jsonCopy">Copia JSON</button></div>
+    <pre id="jsonContent"></pre>
+  </dialog>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="/static/data.js" defer></script>
+</body>
+</html>
