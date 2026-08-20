@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import calendar
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.models import Item
 from app.repository import Repository
@@ -10,10 +12,11 @@ from app.repository import Repository
 class Monitor:
     """Deterministic candidate scoring. Silence is the default below threshold."""
 
-    THRESHOLD = 0.62
+    THRESHOLD = 0.60
 
-    def __init__(self, repository: Repository):
+    def __init__(self, repository: Repository, timezone: str = "Europe/Zurich"):
         self.repository = repository
+        self.timezone = ZoneInfo(timezone)
 
     def run(self, now: datetime | None = None) -> list[dict[str, Any]]:
         now = now or datetime.now(UTC)
@@ -37,8 +40,9 @@ class Monitor:
         importance = 0.2
         reason: list[str] = []
 
-        if item.due_at:
-            days = (item.due_at - now).total_seconds() / 86400
+        effective_due = self._effective_due(item, now)
+        if effective_due:
+            days = (effective_due - now).total_seconds() / 86400
             if days < 0:
                 due_score = 0.9
                 reason.append("scadenza superata")
@@ -52,8 +56,8 @@ class Monitor:
                 due_score = 0.3
         if item.progress_total and item.progress_value is not None:
             remaining_ratio = max(0, item.progress_total - item.progress_value) / item.progress_total
-            if item.due_at:
-                days = max(0.5, (item.due_at - now).total_seconds() / 86400)
+            if effective_due:
+                days = max(0.5, (effective_due - now).total_seconds() / 86400)
                 progress_pressure = min(0.85, remaining_ratio * (7 / days))
                 if progress_pressure >= 0.45:
                     reason.append("margine in riduzione rispetto all'avanzamento")
@@ -70,8 +74,8 @@ class Monitor:
         score = min(1.0, due_score * 0.5 + progress_pressure * 0.3 + importance * 0.15 + staleness * 0.05 + (0.15 if reason else 0))
         if score < self.THRESHOLD:
             return None
-        if item.due_at:
-            days_left = max(0, int((item.due_at - now).total_seconds() / 86400) + 1)
+        if effective_due:
+            days_left = max(0, int((effective_due - now).total_seconds() / 86400) + 1)
             progress = ""
             if item.progress_value is not None and item.progress_total:
                 progress = f" Sei a {item.progress_value:g} su {item.progress_total:g}."
@@ -79,6 +83,28 @@ class Monitor:
         else:
             message = f"È da un po' che non verifichiamo “{item.title}”. È ancora qualcosa che vuoi mantenere attivo?"
         return {"score": round(score, 3), "reason": "; ".join(reason) or "verifica contestuale", "message": message}
+
+    def _effective_due(self, item: Item, now: datetime) -> datetime | None:
+        if item.due_at:
+            return item.due_at
+        recurrence = item.recurrence or {}
+        if recurrence.get("frequency") != "monthly" or not recurrence.get("day_of_month"):
+            return None
+        local_now = now.astimezone(self.timezone)
+        year, month = local_now.year, local_now.month
+        requested_day = int(recurrence["day_of_month"])
+
+        def occurrence(target_year: int, target_month: int) -> datetime:
+            day = min(requested_day, calendar.monthrange(target_year, target_month)[1])
+            return datetime(target_year, target_month, day, 23, 59, 59, tzinfo=self.timezone)
+
+        due = occurrence(year, month)
+        if local_now > due:
+            month = month + 1
+            if month == 13:
+                year, month = year + 1, 1
+            due = occurrence(year, month)
+        return due.astimezone(UTC)
 
     @staticmethod
     def _eligible(item: Item, now: datetime) -> bool:

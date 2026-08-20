@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from app.ai import LocalInterpreter
 from app.db import Database
@@ -147,3 +148,32 @@ def test_ai_usage_is_tracked_and_budget_enforced_in_summary(tmp_path):
     assert summary["total_tokens"] == 1500
     assert summary["estimated_cost_usd"] == 0.25
     assert summary["blocked"] is True
+
+
+def test_monthly_commitment_is_checked_on_its_due_day(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    repo.create_item({
+        "title": "Inviare fatture della scuola",
+        "kind": "commitment",
+        "recurrence": {"frequency": "monthly", "day_of_month": 20},
+        "importance": "high",
+        "consequences": "Possibili problemi di incasso",
+    }, "test", None)
+    now = datetime(2026, 8, 20, 10, 0, tzinfo=UTC)
+    created = Monitor(repo, "Europe/Zurich").run(now)
+    assert len(created) == 1
+    assert "scadenza" in created[0]["reason"]
+    assert "fatture" in created[0]["message"]
+
+
+def test_monthly_commitment_rolls_to_next_month_after_due_day(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    item = repo.create_item({
+        "title": "Inviare fatture",
+        "kind": "commitment",
+        "recurrence": {"frequency": "monthly", "day_of_month": 20},
+    }, "test", None)
+    monitor = Monitor(repo, "Europe/Zurich")
+    now = datetime(2026, 8, 21, 10, 0, tzinfo=UTC)
+    due = monitor._effective_due(item, now)
+    assert due.astimezone(ZoneInfo("Europe/Zurich")).date().isoformat() == "2026-09-20"

@@ -31,7 +31,7 @@ interpreter = build_interpreter(
     settings.ai_output_price_per_million,
 )
 executor = ActionExecutor(repository)
-monitor = Monitor(repository)
+monitor = Monitor(repository, settings.timezone)
 
 
 async def monitor_loop() -> None:
