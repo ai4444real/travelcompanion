@@ -75,11 +75,12 @@ class Monitor:
         if score < self.THRESHOLD:
             return None
         if effective_due:
-            days_left = max(0, int((effective_due - now).total_seconds() / 86400) + 1)
+            days_left = max(0, (effective_due.astimezone(self.timezone).date() - now.astimezone(self.timezone).date()).days)
+            due_phrase = "oggi" if days_left == 0 else "domani" if days_left == 1 else f"tra {days_left} giorni"
             progress = ""
             if item.progress_value is not None and item.progress_total:
                 progress = f" Sei a {item.progress_value:g} su {item.progress_total:g}."
-            message = f"“{item.title}” ha una scadenza tra {days_left} giorni.{progress} È ancora realistico o c'è qualcosa da rinegoziare?"
+            message = f"“{item.title}” ha una scadenza {due_phrase}.{progress} È ancora realistico o c'è qualcosa da rinegoziare?"
         else:
             message = f"È da un po' che non verifichiamo “{item.title}”. È ancora qualcosa che vuoi mantenere attivo?"
         return {"score": round(score, 3), "reason": "; ".join(reason) or "verifica contestuale", "message": message}
