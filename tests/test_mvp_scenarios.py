@@ -115,3 +115,15 @@ def test_provider_vocabulary_is_normalized_before_persistence(tmp_path):
     )
     assert changed[0].status == "active"
     assert changed[0].kind == "commitment"
+
+
+def test_provider_date_alias_is_normalized(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    message_id = repo.add_message("user", "Voglio leggere il libro entro dieci giorni")
+    changed = executor.execute(
+        [Action(type=ActionType.CREATE_ITEM, data={"title": "Il libro", "kind": "libro", "due_date": "2026-08-30", "note": "Terminarlo entro dieci giorni"})],
+        message_id,
+    )
+    assert changed[0].due_at.isoformat() == "2026-08-30T23:59:00+00:00"
+    assert changed[0].kind == "possibility"
+    assert changed[0].context == "Terminarlo entro dieci giorni"

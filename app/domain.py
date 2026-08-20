@@ -76,7 +76,13 @@ class ActionExecutor:
             "habit": ItemKind.ROUTINE.value,
             "change": ItemKind.INTRODUCTION.value,
             "backlog": ItemKind.POSSIBILITY.value,
+            "book": ItemKind.POSSIBILITY.value,
+            "libro": ItemKind.POSSIBILITY.value,
         }
+        if "due_at" not in normalized and normalized.get("due_date"):
+            normalized["due_at"] = f"{normalized.pop('due_date')}T23:59:00+00:00"
+        if "context" not in normalized and normalized.get("note"):
+            normalized["context"] = normalized.pop("note")
         status = str(normalized.get("status", ItemStatus.ACTIVE.value)).lower()
         kind = str(normalized.get("kind", ItemKind.POSSIBILITY.value)).lower()
         valid_statuses = {entry.value for entry in ItemStatus}
