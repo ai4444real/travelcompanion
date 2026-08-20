@@ -30,15 +30,15 @@ function nextMonthlyOccurrence(day) {
 }
 function showToast(text) { const el=$('#toast'); el.textContent=text; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2400); }
 
-function addMessage(role, content, pending=false) {
+function addMessage(role, content, pending=false, scroll=true) {
   const node=document.createElement('article'); node.className=`message ${role}${pending?' pending':''}`;
   node.innerHTML=pending?'<span>Sto mettendo insieme il contesto…</span>':escapeHtml(content);
-  $('#messages').append(node); window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}); return node;
+  $('#messages').append(node); if(scroll) window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}); return node;
 }
 
 async function loadMessages() {
-  const messages=await api('/api/messages');
-  $('#messages').innerHTML=''; messages.forEach(msg=>addMessage(msg.role,msg.content));
+  const messages=await api('/api/messages?limit=12');
+  $('#messages').innerHTML=''; messages.forEach(msg=>addMessage(msg.role,msg.content,false,false));
   if(messages.length) $('#intro').hidden=true;
 }
 
