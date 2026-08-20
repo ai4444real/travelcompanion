@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS items (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     description TEXT,
+    category TEXT,
     kind TEXT NOT NULL,
     status TEXT NOT NULL,
     due_at TEXT,
@@ -131,6 +132,9 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as connection:
             connection.executescript(SCHEMA)
+            columns = {row["name"] for row in connection.execute("PRAGMA table_info(items)").fetchall()}
+            if "category" not in columns:
+                connection.execute("ALTER TABLE items ADD COLUMN category TEXT")
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:

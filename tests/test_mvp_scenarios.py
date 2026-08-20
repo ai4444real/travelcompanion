@@ -206,3 +206,11 @@ def test_raw_snapshot_exposes_app_tables_without_configuration(tmp_path):
     assert set(snapshot) == {"items", "relations", "progress_events", "messages", "checkins", "audit_log", "ai_usage"}
     assert snapshot["items"][0]["title"] == "Fatture"
     assert "OPENAI_API_KEY" not in str(snapshot)
+
+
+def test_free_form_category_is_persisted_and_editable(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Fatture", "category": "Amministrazione scuola"}, "test", None)
+    assert item.category == "Amministrazione scuola"
+    updated = repo.update_item(item.id, {"category": "Amministrazione associazione"}, "manual", None)
+    assert updated.category == "Amministrazione associazione"

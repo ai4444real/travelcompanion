@@ -43,6 +43,7 @@ class Repository:
             "id": item_id,
             "title": data["title"].strip(),
             "description": data.get("description"),
+            "category": data.get("category"),
             "kind": data.get("kind", ItemKind.POSSIBILITY.value),
             "status": data.get("status", ItemStatus.ACTIVE.value),
             "due_at": data.get("due_at"),

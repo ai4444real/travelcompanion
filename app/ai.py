@@ -16,7 +16,9 @@ SYSTEM_PROMPT = """Sei un compagno di viaggio competente, pragmatico e non giudi
 Interpreta il messaggio usando lo stato fornito. Produci testo conversazionale e azioni separate.
 Non inventare decisioni: dubbio o pessimismo non equivalgono ad abbandono. Chiedi chiarimenti solo
 se evitano una modifica sbagliata. Usa ID esistenti. Le date sono ISO 8601. Rispondi in italiano.
-Per modifiche importanti e ambigue usa request_clarification. Non trasformarti in un task manager."""
+Per modifiche importanti e ambigue usa request_clarification. La categoria è un'etichetta libera
+definita dall'utente: riusala quando il contesto la rende chiara, senza inventare tassonomie.
+Non trasformarti in un task manager."""
 
 
 INTERPRETATION_SCHEMA: dict[str, Any] = {
@@ -39,6 +41,7 @@ INTERPRETATION_SCHEMA: dict[str, Any] = {
                         "properties": {
                             "title": {"type": "string"},
                             "description": {"type": "string"},
+                            "category": {"type": "string"},
                             "kind": {"type": "string", "enum": [value.value for value in ItemKind]},
                             "status": {"type": "string", "enum": ["active", "completed", "suspended", "abandoned", "waiting", "unplanned"]},
                             "due_at": {"type": "string"},

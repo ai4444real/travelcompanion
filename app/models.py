@@ -43,6 +43,7 @@ class Item(BaseModel):
     id: str
     title: str
     description: str | None = None
+    category: str | None = None
     kind: ItemKind = ItemKind.POSSIBILITY
     status: ItemStatus = ItemStatus.ACTIVE
     due_at: datetime | None = None
@@ -94,6 +95,7 @@ class ChatResponse(BaseModel):
 class ItemPatch(BaseModel):
     title: str | None = None
     description: str | None = None
+    category: str | None = None
     kind: ItemKind | None = None
     status: ItemStatus | None = None
     due_at: datetime | None = None
