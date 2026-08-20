@@ -177,3 +177,14 @@ def test_monthly_commitment_rolls_to_next_month_after_due_day(tmp_path):
     now = datetime(2026, 8, 21, 10, 0, tzinfo=UTC)
     due = monitor._effective_due(item, now)
     assert due.astimezone(ZoneInfo("Europe/Zurich")).date().isoformat() == "2026-09-20"
+
+
+def test_manual_correction_can_change_monthly_day(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    item = repo.create_item({
+        "title": "Inviare fatture",
+        "recurrence": {"frequency": "monthly", "day_of_month": 20},
+    }, "test", None)
+    updated = repo.update_item(item.id, {"due_at": None, "recurrence": {"frequency": "monthly", "day_of_month": 18}}, "manual", None)
+    assert updated.due_at is None
+    assert updated.recurrence == {"frequency": "monthly", "day_of_month": 18}

@@ -65,6 +65,7 @@ dialog label { display:grid; gap:7px; font-size:12px; color:var(--muted); }
 dialog input,dialog textarea,dialog select { width:100%; border:1px solid var(--line); border-radius:9px; background:white; padding:10px 11px; outline:0; }
 dialog input:focus,dialog textarea:focus,dialog select:focus { border-color:var(--sage); }
 .field-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.next-occurrence { margin:-7px 0 0; padding:10px 12px; border-radius:8px; background:var(--sage-wash); color:var(--sage-dark); font-size:12px; }
 .dialog-actions { display:grid; grid-template-columns:auto 1fr auto auto; gap:9px; align-items:center; }
 .dialog-actions button { border:1px solid var(--line); background:white; border-radius:8px; padding:9px 12px; }
 .dialog-actions .primary { background:var(--sage-dark); color:white; border-color:var(--sage-dark); }

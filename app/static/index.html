@@ -74,8 +74,11 @@
       <label>Titolo<input id="editTitle" required maxlength="200"></label>
       <div class="field-row">
         <label>Stato<select id="editStatus"><option value="active">Attivo</option><option value="completed">Completato</option><option value="suspended">Sospeso</option><option value="waiting">In attesa</option><option value="unplanned">Non pianificato</option><option value="abandoned">Abbandonato</option></select></label>
-        <label>Scadenza<input id="editDue" type="date"></label>
+        <label>Quando<select id="editSchedule"><option value="none">Senza scadenza</option><option value="once">Data singola</option><option value="monthly">Ogni mese</option></select></label>
       </div>
+      <label id="dueField" hidden>Data<input id="editDue" type="date"></label>
+      <label id="monthlyField" hidden>Giorno del mese<input id="editDay" type="number" min="1" max="31" inputmode="numeric"></label>
+      <p class="next-occurrence" id="nextOccurrence" hidden></p>
       <label>Perché conta<textarea id="editMotivation" rows="3"></textarea></label>
       <div class="dialog-actions"><button type="button" class="danger" id="deleteItem">Elimina</button><span></span><button value="cancel" formnovalidate>Annulla</button><button type="submit" class="primary">Salva</button></div>
     </form>
