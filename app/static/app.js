@@ -15,6 +15,7 @@ function recurrenceLabel(recurrence) {
   if(!recurrence) return '';
   if(recurrence.frequency==='monthly'&&recurrence.day_of_month) return `ogni mese · giorno ${recurrence.day_of_month}`;
   if(recurrence.frequency==='weekly'&&recurrence.days_of_week){ const short={monday:'lun',tuesday:'mar',wednesday:'mer',thursday:'gio',friday:'ven',saturday:'sab',sunday:'dom'}; return `ogni settimana · ${recurrence.days_of_week.map(day=>short[day]||day).join(', ')}`; }
+  if(recurrence.frequency==='weekly'&&recurrence.times_per_week) return `${recurrence.times_per_week} volte a settimana`;
   if(recurrence.period==='week'&&recurrence.frequency) return `${recurrence.frequency} volte a settimana`;
   if(recurrence.period==='day') return 'ogni giorno';
   return 'ricorrente';
@@ -84,14 +85,14 @@ function openPanel(){ $('#statePanel').classList.add('open'); $('#statePanel').s
 function closePanel(){ $('#statePanel').classList.remove('open'); $('#statePanel').setAttribute('aria-hidden','true'); $('#stateToggle').setAttribute('aria-expanded','false'); $('#scrim').hidden=true; }
 
 function updateScheduleFields(){
-  const type=$('#editSchedule').value; $('#dueField').hidden=type!=='once'; $('#weeklyField').hidden=type!=='weekly'; $('#monthlyField').hidden=type!=='monthly';
+  const type=$('#editSchedule').value; $('#dueField').hidden=type!=='once'; $('#weeklyCountField').hidden=type!=='weekly_count'; $('#weeklyField').hidden=type!=='weekly_days'; $('#monthlyField').hidden=type!=='monthly';
   const day=Number($('#editDay').value); const showNext=type==='monthly'&&day>=1&&day<=31; $('#nextOccurrence').hidden=!showNext;
   if(showNext) $('#nextOccurrence').textContent=`Prossima occorrenza: ${nextMonthlyOccurrence(day)}`;
 }
 function openEdit(id){
   const item=state.items.find(entry=>entry.id===id); if(!item)return;
   $('#editId').value=id; $('#editTitle').value=item.title; $('#editCategory').value=item.category||''; $('#editStatus').value=item.status; $('#editDue').value=item.due_at?.slice(0,10)||'';
-  $('#editDay').value=item.recurrence?.day_of_month||''; $('#editSchedule').value=item.recurrence?.frequency==='monthly'?'monthly':item.recurrence?.frequency==='weekly'?'weekly':item.due_at?'once':'none';
+  $('#editDay').value=item.recurrence?.day_of_month||''; $('#editWeeklyCount').value=item.recurrence?.times_per_week||''; $('#editSchedule').value=item.recurrence?.frequency==='monthly'?'monthly':item.recurrence?.days_of_week?'weekly_days':item.recurrence?.times_per_week?'weekly_count':item.due_at?'once':'none';
   const selectedDays=new Set(item.recurrence?.days_of_week||[]); document.querySelectorAll('#weeklyField input').forEach(input=>input.checked=selectedDays.has(input.value));
   $('#editMotivation').value=item.motivation||''; updateScheduleFields(); $('#editDialog').showModal();
 }
@@ -107,7 +108,7 @@ $('#stateToggle').addEventListener('click',openPanel); $('#stateClose').addEvent
 $('#filters').addEventListener('click',event=>{ if(!event.target.dataset.filter)return; state.filter=event.target.dataset.filter; document.querySelectorAll('#filters button').forEach(btn=>btn.classList.toggle('active',btn===event.target)); renderItems(); });
 $('#editSchedule').addEventListener('change',updateScheduleFields); $('#editDay').addEventListener('input',updateScheduleFields);
 $('#editClose').addEventListener('click',()=>$('#editDialog').close()); $('#editCancel').addEventListener('click',()=>$('#editDialog').close());
-$('#editForm').addEventListener('submit',async event=>{ event.preventDefault(); const id=$('#editId').value; const schedule=$('#editSchedule').value; const due=$('#editDue').value; const day=Number($('#editDay').value); const weekDays=[...document.querySelectorAll('#weeklyField input:checked')].map(input=>input.value); if(schedule==='monthly'&&(day<1||day>31)){showToast('Inserisci un giorno tra 1 e 31');return;} if(schedule==='weekly'&&!weekDays.length){showToast('Scegli almeno un giorno');return;} const recurrence=schedule==='monthly'?{frequency:'monthly',day_of_month:day}:schedule==='weekly'?{frequency:'weekly',days_of_week:weekDays}:null; try { await api(`/api/items/${id}`,{method:'PATCH',body:JSON.stringify({title:$('#editTitle').value,category:$('#editCategory').value.trim()||null,status:$('#editStatus').value,due_at:schedule==='once'&&due?`${due}T23:59:00Z`:null,recurrence,motivation:$('#editMotivation').value||null})}); $('#editDialog').close(); await loadItems(); showToast('Memoria aggiornata'); } catch(error) { showToast(error.message); } });
+$('#editForm').addEventListener('submit',async event=>{ event.preventDefault(); const id=$('#editId').value; const schedule=$('#editSchedule').value; const due=$('#editDue').value; const day=Number($('#editDay').value); const weeklyCount=Number($('#editWeeklyCount').value); const weekDays=[...document.querySelectorAll('#weeklyField input:checked')].map(input=>input.value); if(schedule==='monthly'&&(day<1||day>31)){showToast('Inserisci un giorno tra 1 e 31');return;} if(schedule==='weekly_count'&&(weeklyCount<1||weeklyCount>14)){showToast('Inserisci quante volte a settimana');return;} if(schedule==='weekly_days'&&!weekDays.length){showToast('Scegli almeno un giorno');return;} const recurrence=schedule==='monthly'?{frequency:'monthly',day_of_month:day}:schedule==='weekly_count'?{frequency:'weekly',times_per_week:weeklyCount}:schedule==='weekly_days'?{frequency:'weekly',days_of_week:weekDays}:null; try { await api(`/api/items/${id}`,{method:'PATCH',body:JSON.stringify({title:$('#editTitle').value,category:$('#editCategory').value.trim()||null,status:$('#editStatus').value,due_at:schedule==='once'&&due?`${due}T23:59:00Z`:null,recurrence,motivation:$('#editMotivation').value||null})}); $('#editDialog').close(); await loadItems(); showToast('Memoria aggiornata'); } catch(error) { showToast(error.message); } });
 $('#deleteItem').addEventListener('click',async()=>{ if(!confirm('Eliminare definitivamente questo elemento? Il log di audit conserverà la traccia della modifica.'))return; await api(`/api/items/${$('#editId').value}`,{method:'DELETE'}); $('#editDialog').close(); await loadItems(); showToast('Elemento eliminato'); });
 $('#rawDataOpen').addEventListener('click',async()=>{ $('#rawDialog').showModal(); await loadRawData(); });
 $('#rawDataClose').addEventListener('click',()=>$('#rawDialog').close()); $('#rawDataRefresh').addEventListener('click',loadRawData);

@@ -199,6 +199,13 @@ def test_manual_correction_can_clear_or_update_weekly_recurrence(tmp_path):
     assert cleared.recurrence is None
 
 
+def test_weekly_frequency_without_fixed_days_is_preserved(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Correre", "recurrence": {"frequency": "weekly", "times_per_week": 3}}, "test", None)
+    updated = repo.update_item(item.id, {"recurrence": {"frequency": "weekly", "times_per_week": 4}}, "manual", None)
+    assert updated.recurrence == {"frequency": "weekly", "times_per_week": 4}
+
+
 def test_raw_snapshot_exposes_app_tables_without_configuration(tmp_path):
     repo, _, _ = setup(tmp_path)
     repo.create_item({"title": "Fatture"}, "test", None)
