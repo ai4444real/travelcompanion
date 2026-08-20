@@ -151,3 +151,8 @@ async def audit(limit: int = Query(100, ge=1, le=500)) -> list[dict]:
 @app.get("/api/usage")
 async def usage() -> dict:
     return repository.ai_usage_summary(settings.ai_monthly_budget_usd)
+
+
+@app.get("/api/debug/raw", include_in_schema=False)
+async def raw_database() -> dict:
+    return repository.raw_snapshot()

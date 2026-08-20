@@ -95,6 +95,7 @@ function openEdit(id){
 }
 
 function resizeComposer(){ const input=$('#messageInput'); input.style.height='auto'; input.style.height=`${Math.min(input.scrollHeight,160)}px`; }
+async function loadRawData(){ $('#rawDataContent').textContent='Caricamento…'; try { const data=await api('/api/debug/raw'); $('#rawDataContent').textContent=JSON.stringify(data,null,2); } catch(error) { $('#rawDataContent').textContent=`Errore: ${error.message}`; } }
 
 $('#chatForm').addEventListener('submit',event=>{ event.preventDefault(); const value=$('#messageInput').value.trim(); if(value)sendMessage(value); });
 $('#messageInput').addEventListener('input',resizeComposer);
@@ -105,6 +106,9 @@ $('#filters').addEventListener('click',event=>{ if(!event.target.dataset.filter)
 $('#editSchedule').addEventListener('change',updateScheduleFields); $('#editDay').addEventListener('input',updateScheduleFields);
 $('#editForm').addEventListener('submit',async event=>{ event.preventDefault(); const id=$('#editId').value; const schedule=$('#editSchedule').value; const due=$('#editDue').value; const day=Number($('#editDay').value); if(schedule==='monthly'&&(day<1||day>31)){showToast('Inserisci un giorno tra 1 e 31');return;} await api(`/api/items/${id}`,{method:'PATCH',body:JSON.stringify({title:$('#editTitle').value,status:$('#editStatus').value,due_at:schedule==='once'&&due?`${due}T23:59:00Z`:null,recurrence:schedule==='monthly'?{frequency:'monthly',day_of_month:day}:null,motivation:$('#editMotivation').value||null})}); $('#editDialog').close(); await loadItems(); showToast('Memoria aggiornata'); });
 $('#deleteItem').addEventListener('click',async()=>{ if(!confirm('Eliminare definitivamente questo elemento? Il log di audit conserverà la traccia della modifica.'))return; await api(`/api/items/${$('#editId').value}`,{method:'DELETE'}); $('#editDialog').close(); await loadItems(); showToast('Elemento eliminato'); });
+$('#rawDataOpen').addEventListener('click',async()=>{ $('#rawDialog').showModal(); await loadRawData(); });
+$('#rawDataClose').addEventListener('click',()=>$('#rawDialog').close()); $('#rawDataRefresh').addEventListener('click',loadRawData);
+$('#rawDataCopy').addEventListener('click',async()=>{ try { await navigator.clipboard.writeText($('#rawDataContent').textContent); showToast('JSON copiato'); } catch { showToast('Copia non disponibile'); } });
 document.addEventListener('keydown',event=>{if(event.key==='Escape')closePanel();});
 
 Promise.all([loadMessages(),loadItems(),loadCheckins(),loadUsage()]).catch(error=>showToast(error.message));

@@ -65,6 +65,7 @@
       <button data-filter="all">Tutto</button>
     </nav>
     <div class="item-list" id="itemList"></div>
+    <button class="raw-link" id="rawDataOpen">Dati grezzi <span>↗</span></button>
   </aside>
 
   <dialog id="editDialog">
@@ -82,6 +83,18 @@
       <label>Perché conta<textarea id="editMotivation" rows="3"></textarea></label>
       <div class="dialog-actions"><button type="button" class="danger" id="deleteItem">Elimina</button><span></span><button value="cancel" formnovalidate>Annulla</button><button type="submit" class="primary">Salva</button></div>
     </form>
+  </dialog>
+
+  <dialog id="rawDialog" class="raw-dialog">
+    <div class="raw-shell">
+      <div class="dialog-head">
+        <div><p class="eyebrow">Vista sviluppatore</p><h2>Dati grezzi</h2></div>
+        <button class="icon-button" id="rawDataClose" aria-label="Chiudi">×</button>
+      </div>
+      <p class="panel-copy">Snapshot JSON delle tabelle applicative. Le configurazioni e le chiavi del server non sono incluse.</p>
+      <div class="raw-actions"><button id="rawDataRefresh">Aggiorna</button><button id="rawDataCopy">Copia JSON</button></div>
+      <pre id="rawDataContent" tabindex="0">Caricamento…</pre>
+    </div>
   </dialog>
 
   <div class="toast" id="toast" role="status"></div>

@@ -187,6 +187,23 @@ class Repository:
         result["month_start"] = month_start
         return result
 
+    def raw_snapshot(self) -> dict[str, list[dict[str, Any]]]:
+        """Developer inspection view. Table names are deliberately hard-coded."""
+        tables = {
+            "items": "created_at, id",
+            "relations": "created_at, id",
+            "progress_events": "happened_at, id",
+            "messages": "created_at, id",
+            "checkins": "created_at, id",
+            "audit_log": "created_at, id",
+            "ai_usage": "created_at, id",
+        }
+        snapshot: dict[str, list[dict[str, Any]]] = {}
+        with self.db.connect() as conn:
+            for table, order_by in tables.items():
+                snapshot[table] = [dict(row) for row in conn.execute(f"SELECT * FROM {table} ORDER BY {order_by}").fetchall()]
+        return snapshot
+
     @staticmethod
     def _audit(conn: Any, entity_type: str, entity_id: str, action: str, origin: str, source_message_id: str | None, before: Any, after: Any) -> None:
         conn.execute(

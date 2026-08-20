@@ -58,6 +58,7 @@ h1 { margin:0; font-size:clamp(44px,7vw,67px); line-height:.98; }
 .item-meta { display:flex; flex-wrap:wrap; gap:6px; color:var(--muted); font-size:11px; }
 .tag { background:var(--paper); border-radius:5px; padding:4px 7px; }
 .empty { border:1px dashed var(--line); padding:30px; text-align:center; color:var(--muted); border-radius:14px; line-height:1.6; }
+.raw-link { display:flex; align-items:center; gap:6px; margin:28px auto 8px; padding:6px; border:0; border-bottom:1px solid transparent; background:transparent; color:var(--muted); font-size:12px; }.raw-link:hover { color:var(--ink); border-color:var(--ink); }
 dialog { width:min(520px,calc(100% - 28px)); border:0; border-radius:18px; padding:0; background:var(--surface); box-shadow:var(--shadow); }
 dialog::backdrop { background:rgba(28,32,29,.38); backdrop-filter:blur(3px); }
 dialog form { padding:25px; display:grid; gap:18px; }
@@ -70,6 +71,7 @@ dialog input:focus,dialog textarea:focus,dialog select:focus { border-color:var(
 .dialog-actions button { border:1px solid var(--line); background:white; border-radius:8px; padding:9px 12px; }
 .dialog-actions .primary { background:var(--sage-dark); color:white; border-color:var(--sage-dark); }
 .dialog-actions .danger { color:var(--clay); }
+.raw-dialog { width:min(1000px,calc(100% - 28px)); height:min(820px,calc(100% - 28px)); }.raw-shell { height:100%; padding:25px; display:flex; flex-direction:column; }.raw-actions { display:flex; gap:8px; margin:4px 0 12px; }.raw-actions button { border:1px solid var(--line); background:white; border-radius:8px; padding:8px 11px; font-size:12px; }.raw-dialog pre { flex:1; min-height:0; margin:0; padding:18px; overflow:auto; border-radius:11px; background:#202622; color:#e6eee7; font:12px/1.55 Consolas,"SFMono-Regular",monospace; white-space:pre; tab-size:2; }
 .toast { position:fixed; left:50%; bottom:25px; z-index:10; transform:translate(-50%,20px); background:var(--ink); color:white; border-radius:9px; padding:10px 15px; font-size:13px; opacity:0; pointer-events:none; transition:.2s; }
 .toast.show { opacity:1; transform:translate(-50%,0); }
 .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
