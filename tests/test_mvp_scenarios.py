@@ -127,3 +127,23 @@ def test_provider_date_alias_is_normalized(tmp_path):
     assert changed[0].due_at.isoformat() == "2026-08-30T23:59:00+00:00"
     assert changed[0].kind == "possibility"
     assert changed[0].context == "Terminarlo entro dieci giorni"
+
+
+def test_ai_usage_is_tracked_and_budget_enforced_in_summary(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    repo.record_ai_usage({
+        "response_id": "resp_test",
+        "provider": "openai",
+        "model": "gpt-5-mini",
+        "input_tokens": 1000,
+        "cached_input_tokens": 200,
+        "output_tokens": 500,
+        "total_tokens": 1500,
+        "estimated_cost_usd": 0.25,
+        "response_status": "completed",
+    })
+    summary = repo.ai_usage_summary(0.20)
+    assert summary["request_count"] == 1
+    assert summary["total_tokens"] == 1500
+    assert summary["estimated_cost_usd"] == 0.25
+    assert summary["blocked"] is True

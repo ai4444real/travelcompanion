@@ -83,9 +83,12 @@ class Interpreter(ABC):
 
 
 class OpenAIInterpreter(Interpreter):
-    def __init__(self, api_key: str, model: str):
+    def __init__(self, api_key: str, model: str, input_price: float, cached_input_price: float, output_price: float):
         self.api_key = api_key
         self.model = model
+        self.input_price = input_price
+        self.cached_input_price = cached_input_price
+        self.output_price = output_price
 
     async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]]) -> Interpretation:
         state = [item.model_dump(mode="json", exclude_none=True) for item in items]
@@ -110,7 +113,30 @@ class OpenAIInterpreter(Interpreter):
                         break
         if not output_text:
             raise RuntimeError("Il provider AI non ha restituito testo strutturato")
-        return Interpretation.model_validate_json(output_text)
+        interpretation = Interpretation.model_validate_json(output_text)
+        usage = body.get("usage") or {}
+        details = usage.get("input_tokens_details") or {}
+        cached_tokens = int(details.get("cached_tokens") or 0)
+        input_tokens = int(usage.get("input_tokens") or 0)
+        uncached_tokens = max(0, input_tokens - cached_tokens)
+        output_tokens = int(usage.get("output_tokens") or 0)
+        estimated_cost = (
+            uncached_tokens * self.input_price
+            + cached_tokens * self.cached_input_price
+            + output_tokens * self.output_price
+        ) / 1_000_000
+        interpretation.provider_usage = {
+            "response_id": body.get("id"),
+            "provider": "openai",
+            "model": body.get("model") or self.model,
+            "input_tokens": input_tokens,
+            "cached_input_tokens": cached_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": int(usage.get("total_tokens") or input_tokens + output_tokens),
+            "estimated_cost_usd": estimated_cost,
+            "response_status": body.get("status"),
+        }
+        return interpretation
 
 
 class LocalInterpreter(Interpreter):
@@ -302,9 +328,16 @@ class LocalInterpreter(Interpreter):
         return f"{minutes} minuti"
 
 
-def build_interpreter(provider: str, api_key: str | None, model: str) -> Interpreter:
+def build_interpreter(
+    provider: str,
+    api_key: str | None,
+    model: str,
+    input_price: float = 0.25,
+    cached_input_price: float = 0.025,
+    output_price: float = 2.0,
+) -> Interpreter:
     if provider == "openai":
         if not api_key:
             raise RuntimeError("AI_PROVIDER=openai richiede OPENAI_API_KEY")
-        return OpenAIInterpreter(api_key, model)
+        return OpenAIInterpreter(api_key, model, input_price, cached_input_price, output_price)
     return LocalInterpreter()

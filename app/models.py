@@ -78,6 +78,7 @@ class Interpretation(BaseModel):
     reply: str
     actions: list[Action] = Field(default_factory=list)
     needs_confirmation: bool = False
+    provider_usage: dict[str, Any] | None = Field(default=None, exclude=True)
 
 
 class ChatRequest(BaseModel):
@@ -109,4 +110,3 @@ class ItemPatch(BaseModel):
     user_assessment: str | None = None
     checkin_cooldown_days: int | None = None
     suspended_until: datetime | None = None
-

@@ -9,6 +9,7 @@ MVP conversazionale che mantiene nel tempo impegni, intenzioni, routine e possib
 - memoria operativa SQLite per elementi, relazioni, progressi e conversazioni;
 - esecuzione validata delle azioni: l’AI propone, il dominio controlla e applica;
 - audit prima/dopo per ogni modifica significativa;
+- tracking locale di token/costi e blocco mensile applicativo;
 - monitor selettivo per scadenze, avanzamento e verifiche rimaste in sospeso;
 - silenzio intelligente quando non esiste una conversazione utile da aprire;
 - console di ispezione e correzione manuale;
@@ -51,6 +52,8 @@ uvicorn app.main:app --reload
 ```
 
 Il provider usa `store: false`; lo stato operativo resta nel database dell’app. Il modello è configurabile e il core non dipende dal provider.
+
+Le tariffe usate per la stima e il limite mensile interno sono configurabili tramite `AI_INPUT_PRICE_PER_MILLION`, `AI_CACHED_INPUT_PRICE_PER_MILLION`, `AI_OUTPUT_PRICE_PER_MILLION` e `AI_MONTHLY_BUDGET_USD`. Devono essere aggiornate quando cambia modello o listino.
 
 ## Test
 

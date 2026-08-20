@@ -48,10 +48,18 @@ async function loadCheckins() {
   }));
 }
 
+async function loadUsage() {
+  const usage=await api('/api/usage');
+  $('#usageCost').textContent=`$${Number(usage.estimated_cost_usd).toFixed(4)} / $${Number(usage.monthly_budget_usd).toFixed(2)}`;
+  $('#usageDetail').textContent=`${usage.request_count} richieste · ${usage.total_tokens} token`;
+  const percent=usage.monthly_budget_usd?Math.min(100,usage.estimated_cost_usd/usage.monthly_budget_usd*100):100;
+  $('#usageBar').style.width=`${Math.max(percent,percent>0?1:0)}%`;
+}
+
 async function sendMessage(message) {
   if(state.busy) return; state.busy=true; $('#intro').hidden=true; addMessage('user',message); const pending=addMessage('assistant','',true);
   $('#messageInput').value=''; resizeComposer(); $('.send').disabled=true;
-  try { const result=await api('/api/chat',{method:'POST',body:JSON.stringify({message})}); pending.remove(); addMessage('assistant',result.reply); await loadItems(); }
+  try { const result=await api('/api/chat',{method:'POST',body:JSON.stringify({message})}); pending.remove(); addMessage('assistant',result.reply); await Promise.all([loadItems(),loadUsage()]); }
   catch(error){ pending.remove(); addMessage('assistant',`Non sono riuscito a elaborare il messaggio: ${error.message}`); }
   finally { state.busy=false; $('.send').disabled=false; $('#messageInput').focus(); }
 }
@@ -73,6 +81,5 @@ $('#editForm').addEventListener('submit',async event=>{ event.preventDefault(); 
 $('#deleteItem').addEventListener('click',async()=>{ if(!confirm('Eliminare definitivamente questo elemento? Il log di audit conserverà la traccia della modifica.'))return; await api(`/api/items/${$('#editId').value}`,{method:'DELETE'}); $('#editDialog').close(); await loadItems(); showToast('Elemento eliminato'); });
 document.addEventListener('keydown',event=>{if(event.key==='Escape')closePanel();});
 
-Promise.all([loadMessages(),loadItems(),loadCheckins()]).catch(error=>showToast(error.message));
+Promise.all([loadMessages(),loadItems(),loadCheckins(),loadUsage()]).catch(error=>showToast(error.message));
 if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
-

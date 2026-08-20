@@ -22,7 +22,14 @@ from app.repository import Repository
 settings = get_settings()
 db = Database(settings.database_path)
 repository = Repository(db)
-interpreter = build_interpreter(settings.ai_provider, settings.openai_api_key, settings.openai_model)
+interpreter = build_interpreter(
+    settings.ai_provider,
+    settings.openai_api_key,
+    settings.openai_model,
+    settings.ai_input_price_per_million,
+    settings.ai_cached_input_price_per_million,
+    settings.ai_output_price_per_million,
+)
 executor = ActionExecutor(repository)
 monitor = Monitor(repository)
 
@@ -73,10 +80,14 @@ async def health() -> dict[str, str]:
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
+    if settings.ai_provider == "openai" and repository.ai_usage_summary(settings.ai_monthly_budget_usd)["blocked"]:
+        raise HTTPException(status_code=402, detail="Budget AI mensile raggiunto. Nessuna chiamata è stata effettuata.")
     message = request.message.strip()
     user_message_id = repository.add_message("user", message)
     try:
         result = await interpreter.interpret(message, repository.list_items(), repository.recent_messages())
+        if result.provider_usage:
+            repository.record_ai_usage(result.provider_usage)
         changed = executor.execute(result.actions, user_message_id)
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Provider AI non disponibile: {exc}") from exc
@@ -135,3 +146,8 @@ async def deliver_checkin(checkin_id: str) -> dict[str, str]:
 @app.get("/api/audit")
 async def audit(limit: int = Query(100, ge=1, le=500)) -> list[dict]:
     return repository.audit_log(limit)
+
+
+@app.get("/api/usage")
+async def usage() -> dict:
+    return repository.ai_usage_summary(settings.ai_monthly_budget_usd)

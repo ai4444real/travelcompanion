@@ -54,6 +54,12 @@
       <button class="icon-button" id="stateClose" aria-label="Chiudi">×</button>
     </header>
     <p class="panel-copy">Questa è una vista di sicurezza: puoi correggere ciò che ho interpretato male.</p>
+    <div class="usage-card" id="usageCard">
+      <span>Uso AI questo mese</span>
+      <strong id="usageCost">—</strong>
+      <small id="usageDetail">Caricamento…</small>
+      <div class="usage-track"><i id="usageBar"></i></div>
+    </div>
     <nav class="filters" id="filters" aria-label="Filtra elementi">
       <button class="active" data-filter="current">In corso</button>
       <button data-filter="all">Tutto</button>
@@ -79,4 +85,3 @@
   <script src="/static/app.js" defer></script>
 </body>
 </html>
-

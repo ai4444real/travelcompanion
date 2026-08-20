@@ -151,6 +151,42 @@ class Repository:
         with self.db.connect() as conn:
             return [dict(row) for row in conn.execute("SELECT * FROM audit_log ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()]
 
+    def record_ai_usage(self, usage: dict[str, Any]) -> None:
+        with self.db.connect() as conn:
+            conn.execute(
+                """INSERT OR IGNORE INTO ai_usage(
+                    id,response_id,provider,model,input_tokens,cached_input_tokens,
+                    output_tokens,total_tokens,estimated_cost_usd,response_status,created_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    new_id("usage"), usage.get("response_id"), usage.get("provider", "unknown"),
+                    usage.get("model", "unknown"), int(usage.get("input_tokens", 0)),
+                    int(usage.get("cached_input_tokens", 0)), int(usage.get("output_tokens", 0)),
+                    int(usage.get("total_tokens", 0)), float(usage.get("estimated_cost_usd", 0)),
+                    usage.get("response_status"), now_iso(),
+                ),
+            )
+
+    def ai_usage_summary(self, monthly_budget_usd: float) -> dict[str, Any]:
+        month_start = datetime.now(UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+        with self.db.connect() as conn:
+            row = conn.execute(
+                """SELECT COUNT(*) AS request_count, COALESCE(SUM(input_tokens),0) AS input_tokens,
+                    COALESCE(SUM(cached_input_tokens),0) AS cached_input_tokens,
+                    COALESCE(SUM(output_tokens),0) AS output_tokens,
+                    COALESCE(SUM(total_tokens),0) AS total_tokens,
+                    COALESCE(SUM(estimated_cost_usd),0) AS estimated_cost_usd
+                    FROM ai_usage WHERE created_at >= ?""",
+                (month_start,),
+            ).fetchone()
+        result = dict(row)
+        result["estimated_cost_usd"] = round(float(result["estimated_cost_usd"]), 8)
+        result["monthly_budget_usd"] = monthly_budget_usd
+        result["remaining_usd"] = round(max(0, monthly_budget_usd - result["estimated_cost_usd"]), 8)
+        result["blocked"] = result["estimated_cost_usd"] >= monthly_budget_usd
+        result["month_start"] = month_start
+        return result
+
     @staticmethod
     def _audit(conn: Any, entity_type: str, entity_id: str, action: str, origin: str, source_message_id: str | None, before: Any, after: Any) -> None:
         conn.execute(
