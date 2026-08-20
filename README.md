@@ -92,3 +92,20 @@ Le future integrazioni possono essere aggiunte come adapter che producono eviden
 - i check-in compaiono nella PWA, senza notifiche push;
 - l’interprete locale è un baseline deterministico, non sostituisce un LLM generale;
 - nessuna app mobile nativa, gamification o pianificazione automatica dettagliata.
+
+## Deployment sul VPS
+
+Il deployment previsto usa `/opt/travel-companion`, un virtualenv isolato e il servizio `travel-companion.service`, in ascolto soltanto su `127.0.0.1:8100`.
+
+```bash
+cd /opt/travel-companion
+sudo ./scripts/install-server.sh
+```
+
+Finché non viene aggiunta autenticazione, non pubblicare direttamente il servizio tramite reverse proxy. Per accedervi in sicurezza dal proprio computer:
+
+```powershell
+ssh -L 8100:127.0.0.1:8100 ubuntu@SERVER
+```
+
+Lasciare aperta la sessione e visitare <http://127.0.0.1:8100>.

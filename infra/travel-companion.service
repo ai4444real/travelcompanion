@@ -1,0 +1,29 @@
+[Unit]
+Description=Travel Companion FastAPI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/travel-companion
+Environment=PYTHONUNBUFFERED=1
+Environment=AI_PROVIDER=local
+Environment=DATABASE_PATH=/opt/travel-companion/data/travel_companion.db
+Environment=APP_TIMEZONE=Europe/Zurich
+Environment=MONITOR_INTERVAL_SECONDS=3600
+EnvironmentFile=-/etc/travel-companion.env
+ExecStart=/opt/travel-companion/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8100 --no-proxy-headers
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/travel-companion/data
+
+[Install]
+WantedBy=multi-user.target
+
