@@ -22,6 +22,10 @@ Quando l'utente riferisce qualcosa che ha fatto, usa record_activity. Usa occurr
 individuale e summary per un totale approssimativo su un periodo. Registra solo quantità e unità
 esplicitamente dette; non chiedere dettagli mancanti se non servono a una decisione. source_type è
 explicit per dichiarazioni dell'utente. Non confondere la cronologia attività con l'audit tecnico.
+Un impegno con una scadenza viene già seguito dal monitor: non proporre né creare un promemoria
+separato, a meno che l'utente chieda esplicitamente un controllo aggiuntivo in un momento preciso.
+Quando scadenza e lavoro richiesto sono importanti ma la durata è ambigua, chiedi una stima invece
+di inventarla: serve al monitor per intervenire con anticipo e margine.
 Non trasformarti in un task manager."""
 
 

@@ -36,6 +36,10 @@ class Monitor:
             return None
         due_score = 0.0
         progress_pressure = 0.0
+        workload_pressure = 0.0
+        remaining_minutes: float | None = None
+        effort_days = 0.0
+        margin_days = 0.0
         staleness = 0.0
         importance = 0.2
         reason: list[str] = []
@@ -61,6 +65,18 @@ class Monitor:
                 progress_pressure = min(0.85, remaining_ratio * (7 / days))
                 if progress_pressure >= 0.45:
                     reason.append("margine in riduzione rispetto all'avanzamento")
+        if effective_due and item.estimate_minutes:
+            remaining_minutes = float(item.estimate_minutes)
+            if item.progress_total and item.progress_value is not None:
+                remaining_ratio = max(0.0, item.progress_total - item.progress_value) / item.progress_total
+                remaining_minutes *= remaining_ratio
+            effort_days = remaining_minutes / 480
+            margin_days = max(1.0, effort_days * 0.25)
+            days_available = max(0.0, (effective_due - now).total_seconds() / 86400)
+            alert_horizon = effort_days + margin_days
+            if remaining_minutes > 0 and days_available <= alert_horizon:
+                workload_pressure = min(0.95, max(0.65, alert_horizon / max(days_available, 0.5)))
+                reason.append("tempo disponibile vicino al lavoro stimato, incluso margine")
         if item.last_checked_at:
             staleness = min(0.45, (now - item.last_checked_at).days / 30)
         elif (now - item.created_at).days >= 10:
@@ -71,7 +87,7 @@ class Monitor:
         if item.consequences:
             importance = max(importance, 0.45)
 
-        score = min(1.0, due_score * 0.65 + progress_pressure * 0.3 + importance * 0.15 + staleness * 0.05 + (0.15 if reason else 0))
+        score = min(1.0, due_score * 0.65 + progress_pressure * 0.3 + workload_pressure * 0.5 + importance * 0.15 + staleness * 0.05 + (0.15 if reason else 0))
         if score < self.THRESHOLD:
             return None
         if effective_due:
@@ -80,7 +96,16 @@ class Monitor:
             progress = ""
             if item.progress_value is not None and item.progress_total:
                 progress = f" Sei a {item.progress_value:g} su {item.progress_total:g}."
-            message = f"“{item.title}” ha una scadenza {due_phrase}.{progress} È ancora realistico o c'è qualcosa da rinegoziare?"
+            effort = ""
+            if workload_pressure and remaining_minutes is not None:
+                if remaining_minutes >= 480:
+                    estimate = f"{remaining_minutes / 480:g} giorni di lavoro"
+                elif remaining_minutes >= 60:
+                    estimate = f"{remaining_minutes / 60:g} ore"
+                else:
+                    estimate = f"{remaining_minutes:g} minuti"
+                effort = f" La stima residua è circa {estimate}, oltre a un margine di {margin_days:g} giorni."
+            message = f"“{item.title}” ha una scadenza {due_phrase}.{progress}{effort} È ancora realistico o c'è qualcosa da rinegoziare?"
         else:
             message = f"È da un po' che non verifichiamo “{item.title}”. È ancora qualcosa che vuoi mantenere attivo?"
         return {"score": round(score, 3), "reason": "; ".join(reason) or "verifica contestuale", "message": message}

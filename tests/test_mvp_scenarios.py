@@ -278,3 +278,26 @@ def test_monitor_accepts_due_dates_without_timezone(tmp_path):
     monitor = Monitor(repo, "Europe/Zurich")
     due = monitor._effective_due(item, datetime(2026, 8, 21, 10, 0, tzinfo=UTC))
     assert due is not None and due.tzinfo is not None
+
+
+def test_monitor_warns_when_estimated_work_plus_margin_fills_available_time(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    now = datetime(2026, 8, 21, 9, 0, tzinfo=UTC)
+    due = now + timedelta(days=10)
+    item = repo.create_item({
+        "title": "Lavoro lungo", "due_at": due.isoformat(), "estimate_minutes": 8 * 480,
+    }, "test", None)
+    candidate = Monitor(repo, "Europe/Zurich").evaluate(item, now)
+    assert candidate is not None
+    assert candidate["score"] >= Monitor.THRESHOLD
+    assert "8 giorni di lavoro" in candidate["message"]
+    assert "margine di 2 giorni" in candidate["message"]
+
+
+def test_monitor_stays_silent_when_estimated_work_has_plenty_of_margin(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    now = datetime(2026, 8, 21, 9, 0, tzinfo=UTC)
+    item = repo.create_item({
+        "title": "Lavoro breve", "due_at": (now + timedelta(days=30)).isoformat(), "estimate_minutes": 480,
+    }, "test", None)
+    assert Monitor(repo, "Europe/Zurich").evaluate(item, now) is None
