@@ -76,9 +76,10 @@ class ActionExecutor:
             "backlog": ItemStatus.UNPLANNED.value,
         }
         kind_aliases = {
-            "tema": ItemKind.THEME.value,
-            "topic": ItemKind.THEME.value,
-            "project": ItemKind.THEME.value,
+            "theme": ItemKind.TEMA.value,
+            "tema": ItemKind.TEMA.value,
+            "topic": ItemKind.TEMA.value,
+            "project": ItemKind.TEMA.value,
             "task": ItemKind.COMMITMENT.value,
             "goal": ItemKind.COMMITMENT.value,
             "habit": ItemKind.ROUTINE.value,

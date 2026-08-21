@@ -1,6 +1,6 @@
 const $ = (selector) => document.querySelector(selector);
-const state = { items: [], filter: 'current', busy: false };
-const labels = { active:'Attivo', completed:'Completato', suspended:'Sospeso', abandoned:'Abbandonato', waiting:'In attesa', unplanned:'Non pianificato', theme:'Tema', commitment:'Impegno', routine:'Routine', introduction:'Reintroduzione', possibility:'Possibilità' };
+const state = { items: [], filter: 'objects', busy: false };
+const labels = { active:'Attivo', completed:'Completato', suspended:'Sospeso', abandoned:'Abbandonato', waiting:'In attesa', unplanned:'Non pianificato', tema:'Tema', theme:'Tema', commitment:'Impegno', routine:'Routine', introduction:'Reintroduzione', possibility:'Possibilità' };
 
 async function api(path, options = {}) {
   const response = await fetch(path, { headers:{'Content-Type':'application/json'}, ...options });
@@ -49,7 +49,7 @@ async function loadItems() {
 }
 
 function renderItems() {
-  const visible=state.filter==='all'?state.items:state.filter==='themes'?state.items.filter(item=>item.kind==='theme'):state.items.filter(item=>item.kind!=='theme'&&['active','waiting','unplanned','suspended'].includes(item.status));
+  const isTheme=item=>['tema','theme'].includes(item.kind); const visible=state.filter==='all'?state.items:state.filter==='themes'?state.items.filter(isTheme):state.items.filter(item=>!isTheme(item)&&['active','waiting','unplanned','suspended'].includes(item.status));
   const list=$('#itemList');
   if(!visible.length){ list.innerHTML='<div class="empty">Non c’è ancora nulla qui.<br>Parlami di qualcosa che vuoi tenere a mente.</div>'; return; }
   list.innerHTML=visible.map(item=>`<article class="item-card" data-id="${item.id}"><h3>${escapeHtml(item.title)}</h3><div class="item-meta">${item.category?`<span class="tag">${escapeHtml(item.category)}</span>`:''}<span class="tag">${labels[item.status]||item.status}</span><span class="tag">${labels[item.kind]||item.kind}</span>${item.recurrence?`<span class="tag">${escapeHtml(recurrenceLabel(item.recurrence))}</span>`:item.due_at?`<span class="tag">entro ${displayDate(item.due_at)}</span>`:''}${item.progress_value!=null?`<span class="tag">${item.progress_value}${item.progress_total?`/${item.progress_total}`:''}</span>`:''}</div></article>`).join('');
@@ -91,7 +91,7 @@ function updateScheduleFields(){
 }
 function openEdit(id){
   const item=state.items.find(entry=>entry.id===id); if(!item)return;
-  $('#editId').value=id; $('#editTitle').value=item.title; $('#editDescription').value=item.description||''; $('#editCategory').value=item.category||''; $('#editKind').value=item.kind; $('#editStatus').value=item.status; $('#editDue').value=item.due_at?.slice(0,10)||'';
+  $('#editId').value=id; $('#editTitle').value=item.title; $('#editDescription').value=item.description||''; $('#editCategory').value=item.category||''; $('#editKind').value=item.kind==='theme'?'tema':item.kind; $('#editStatus').value=item.status; $('#editDue').value=item.due_at?.slice(0,10)||'';
   $('#editDay').value=item.recurrence?.day_of_month||''; $('#editWeeklyCount').value=item.recurrence?.times_per_week||''; $('#editSchedule').value=item.recurrence?.frequency==='monthly'?'monthly':item.recurrence?.days_of_week?'weekly_days':item.recurrence?.times_per_week?'weekly_count':item.due_at?'once':'none';
   const selectedDays=new Set(item.recurrence?.days_of_week||[]); document.querySelectorAll('#weeklyField input').forEach(input=>input.checked=selectedDays.has(input.value));
   $('#editMotivation').value=item.motivation||''; updateScheduleFields(); $('#editDialog').showModal();

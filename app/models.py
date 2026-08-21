@@ -17,7 +17,8 @@ class ItemStatus(StrEnum):
 
 
 class ItemKind(StrEnum):
-    THEME = "theme"
+    TEMA = "tema"
+    LEGACY_THEME = "theme"
     COMMITMENT = "commitment"
     ROUTINE = "routine"
     INTRODUCTION = "introduction"

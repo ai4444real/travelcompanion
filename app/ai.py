@@ -30,6 +30,7 @@ Un tema (kind theme) è un ambito continuativo dal quale possono nascere task: p
 descrizione o direzione, ma non richiede scadenza, completamento o richiamo. Non confonderlo con una
 possibilità. Collega un task a un tema esistente con add_relation e relation_type belongs_to. Se non
 è chiaro se qualcosa sia un tema o un'azione concreta, chiedi.
+Nel dato usa sempre il valore italiano kind tema; theme è soltanto un vecchio valore compatibile.
 Non trasformarti in un task manager."""
 
 
@@ -54,7 +55,7 @@ INTERPRETATION_SCHEMA: dict[str, Any] = {
                             "title": {"type": "string"},
                             "description": {"type": "string"},
                             "category": {"type": "string"},
-                            "kind": {"type": "string", "enum": [value.value for value in ItemKind]},
+                            "kind": {"type": "string", "enum": [value.value for value in ItemKind if value != ItemKind.LEGACY_THEME]},
                             "status": {"type": "string", "enum": ["active", "completed", "suspended", "abandoned", "waiting", "unplanned"]},
                             "due_at": {"type": "string"},
                             "recurrence": {"type": "object"},
