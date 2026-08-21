@@ -32,7 +32,7 @@ class Monitor:
         return created
 
     def evaluate(self, item: Item, now: datetime) -> dict[str, Any] | None:
-        if item.status != "active":
+        if item.status != "active" or item.kind == "theme":
             return None
         due_score = 0.0
         progress_pressure = 0.0

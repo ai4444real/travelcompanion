@@ -62,6 +62,7 @@
     </div>
     <nav class="filters" id="filters" aria-label="Filtra elementi">
       <button class="active" data-filter="current">In corso</button>
+      <button data-filter="themes">Temi</button>
       <button data-filter="all">Tutto</button>
     </nav>
     <div class="item-list" id="itemList"></div>
@@ -73,9 +74,13 @@
       <div class="dialog-head"><h2>Correggi ciò che ricordo</h2><button class="icon-button" id="editClose" type="button" aria-label="Chiudi">×</button></div>
       <input type="hidden" id="editId">
       <label>Titolo<input id="editTitle" required maxlength="200"></label>
+      <label>Descrizione o direzione<textarea id="editDescription" rows="2"></textarea></label>
       <label>Categoria libera<input id="editCategory" maxlength="100" placeholder="Per esempio: Amministrazione scuola"></label>
       <div class="field-row">
+        <label>Tipo<select id="editKind"><option value="theme">Tema</option><option value="commitment">Impegno</option><option value="routine">Routine</option><option value="introduction">Reintroduzione</option><option value="possibility">Possibilità</option></select></label>
         <label>Stato<select id="editStatus"><option value="active">Attivo</option><option value="completed">Completato</option><option value="suspended">Sospeso</option><option value="waiting">In attesa</option><option value="unplanned">Non pianificato</option><option value="abandoned">Abbandonato</option></select></label>
+      </div>
+      <div class="field-row">
         <label>Quando<select id="editSchedule"><option value="none">Senza scadenza</option><option value="once">Data singola</option><option value="weekly_count">Più volte a settimana</option><option value="weekly_days">Giorni settimanali</option><option value="monthly">Ogni mese</option></select></label>
       </div>
       <label id="dueField" hidden>Data<input id="editDue" type="date"></label>

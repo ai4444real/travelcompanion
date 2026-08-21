@@ -301,3 +301,29 @@ def test_monitor_stays_silent_when_estimated_work_has_plenty_of_margin(tmp_path)
         "title": "Lavoro breve", "due_at": (now + timedelta(days=30)).isoformat(), "estimate_minutes": 480,
     }, "test", None)
     assert Monitor(repo, "Europe/Zurich").evaluate(item, now) is None
+
+
+def test_theme_is_a_real_kind_and_never_generates_checkins(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    message_id = repo.add_message("user", "Mentore aziendale è un tema")
+    changed = executor.execute([Action(
+        type=ActionType.CREATE_ITEM,
+        data={"title": "Mentore aziendale", "kind": "theme", "description": "Portarlo sul mercato"},
+        confidence=1,
+    )], message_id)
+    assert changed[0].kind == "theme"
+    assert changed[0].description == "Portarlo sul mercato"
+    assert Monitor(repo).run() == []
+
+
+def test_task_can_belong_to_an_existing_theme(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    theme = repo.create_item({"title": "Mentore aziendale", "kind": "theme"}, "test", None)
+    task = repo.create_item({"title": "Chiamare Monica", "kind": "commitment"}, "test", None)
+    executor.execute([Action(type=ActionType.ADD_RELATION, item_id=task.id, data={
+        "target_item_id": theme.id, "relation_type": "belongs_to",
+    }, confidence=1)], repo.add_message("user", "Collegalo al tema"))
+    relation = repo.list_relations()[0]
+    assert relation["source_item_id"] == task.id
+    assert relation["target_item_id"] == theme.id
+    assert relation["relation_type"] == "belongs_to"

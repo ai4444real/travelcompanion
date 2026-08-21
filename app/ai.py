@@ -26,6 +26,10 @@ Un impegno con una scadenza viene già seguito dal monitor: non proporre né cre
 separato, a meno che l'utente chieda esplicitamente un controllo aggiuntivo in un momento preciso.
 Quando scadenza e lavoro richiesto sono importanti ma la durata è ambigua, chiedi una stima invece
 di inventarla: serve al monitor per intervenire con anticipo e margine.
+Un tema (kind theme) è un ambito continuativo dal quale possono nascere task: può avere categoria,
+descrizione o direzione, ma non richiede scadenza, completamento o richiamo. Non confonderlo con una
+possibilità. Collega un task a un tema esistente con add_relation e relation_type belongs_to. Se non
+è chiaro se qualcosa sia un tema o un'azione concreta, chiedi.
 Non trasformarti in un task manager."""
 
 
