@@ -151,6 +151,8 @@ class Repository:
                 values,
             )
             self._audit(conn, "activity_record", record_id, "create", "conversation", source_message_id, None, values)
+            if record_type == "occurrence":
+                self._resolve_pending_checkins(conn, item_id)
         return values
 
     def list_activity_records(self, item_id: str | None = None) -> list[dict[str, Any]]:
@@ -183,7 +185,23 @@ class Repository:
 
     def pending_checkins(self) -> list[dict[str, Any]]:
         with self.db.connect() as conn:
-            return [dict(row) for row in conn.execute("SELECT * FROM checkins WHERE status='pending' ORDER BY score DESC, created_at").fetchall()]
+            return [dict(row) for row in conn.execute(
+                """SELECT c.* FROM checkins c LEFT JOIN items i ON i.id=c.item_id
+                WHERE c.status='pending' AND (c.item_id IS NULL OR i.status='active')
+                ORDER BY c.score DESC, c.created_at"""
+            ).fetchall()]
+
+    def resolve_pending_checkins(self, item_id: str) -> None:
+        with self.db.connect() as conn:
+            self._resolve_pending_checkins(conn, item_id)
+
+    @staticmethod
+    def _resolve_pending_checkins(conn: Any, item_id: str) -> None:
+        timestamp = now_iso()
+        conn.execute(
+            "UPDATE checkins SET status='resolved', resolved_at=? WHERE item_id=? AND status='pending'",
+            (timestamp, item_id),
+        )
 
     def deliver_checkin(self, checkin_id: str) -> None:
         with self.db.connect() as conn:

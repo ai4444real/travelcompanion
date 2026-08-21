@@ -32,7 +32,9 @@ class ActionExecutor:
         if action.type == ActionType.UPDATE_ITEM:
             return self.repository.update_item(action.item_id, action.data, "conversation", source_message_id)
         if action.type == ActionType.COMPLETE_ITEM:
-            return self.repository.update_item(action.item_id, {"status": ItemStatus.COMPLETED.value}, "conversation", source_message_id)
+            item = self.repository.update_item(action.item_id, {"status": ItemStatus.COMPLETED.value}, "conversation", source_message_id)
+            self.repository.resolve_pending_checkins(action.item_id)
+            return item
         if action.type == ActionType.SUSPEND_ITEM:
             changes = {"status": ItemStatus.SUSPENDED.value}
             if action.data.get("suspended_until"):

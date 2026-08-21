@@ -71,7 +71,7 @@ class Monitor:
         if item.consequences:
             importance = max(importance, 0.45)
 
-        score = min(1.0, due_score * 0.5 + progress_pressure * 0.3 + importance * 0.15 + staleness * 0.05 + (0.15 if reason else 0))
+        score = min(1.0, due_score * 0.65 + progress_pressure * 0.3 + importance * 0.15 + staleness * 0.05 + (0.15 if reason else 0))
         if score < self.THRESHOLD:
             return None
         if effective_due:
@@ -87,7 +87,7 @@ class Monitor:
 
     def _effective_due(self, item: Item, now: datetime) -> datetime | None:
         if item.due_at:
-            return item.due_at
+            return self._aware(item.due_at)
         recurrence = item.recurrence or {}
         if recurrence.get("frequency") != "monthly" or not recurrence.get("day_of_month"):
             return None
@@ -107,10 +107,15 @@ class Monitor:
             due = occurrence(year, month)
         return due.astimezone(UTC)
 
-    @staticmethod
-    def _eligible(item: Item, now: datetime) -> bool:
+    def _eligible(self, item: Item, now: datetime) -> bool:
         if item.status == "suspended":
-            return bool(item.suspended_until and item.suspended_until <= now)
-        if item.last_checked_at and now - item.last_checked_at < timedelta(days=item.checkin_cooldown_days):
+            return bool(item.suspended_until and self._aware(item.suspended_until) <= now)
+        if item.last_checked_at and now - self._aware(item.last_checked_at) < timedelta(days=item.checkin_cooldown_days):
             return False
         return True
+
+    def _aware(self, value: datetime) -> datetime:
+        """Treat provider dates without an offset as local dates, then compare in UTC."""
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=self.timezone)
+        return value.astimezone(UTC)

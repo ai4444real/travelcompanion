@@ -252,3 +252,29 @@ def test_approximate_activity_summary_does_not_invent_dates_or_distance(tmp_path
     assert record["count"] == 2
     assert record["quantity"] is None
     assert record["period_start"].startswith("2026-08-17")
+
+
+def test_activity_resolves_an_existing_checkin(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Palestra", "kind": "routine"}, "test", None)
+    repo.create_checkin(item.id, "Vai ancora in palestra?", "test", 0.8)
+    message_id = repo.add_message("user", "Stamattina ho fatto palestra")
+    executor.execute([Action(type="record_activity", item_id=item.id, data={"record_type": "occurrence"}, confidence=1)], message_id)
+    assert repo.pending_checkins() == []
+
+
+def test_due_today_is_enough_for_a_checkin_without_explicit_importance(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    now = datetime(2026, 8, 21, 10, 0, tzinfo=UTC)
+    item = repo.create_item({"title": "Chiamare Monica", "due_at": "2026-08-21T14:00:00Z"}, "test", None)
+    candidate = Monitor(repo, "Europe/Zurich").evaluate(item, now)
+    assert candidate is not None
+    assert candidate["score"] >= Monitor.THRESHOLD
+
+
+def test_monitor_accepts_due_dates_without_timezone(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Scadenza locale", "due_at": "2026-09-01T00:00:00"}, "test", None)
+    monitor = Monitor(repo, "Europe/Zurich")
+    due = monitor._effective_due(item, datetime(2026, 8, 21, 10, 0, tzinfo=UTC))
+    assert due is not None and due.tzinfo is not None
