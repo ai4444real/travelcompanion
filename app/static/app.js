@@ -1,5 +1,5 @@
 const $ = (selector) => document.querySelector(selector);
-const state = { items: [], filter: 'objects', busy: false };
+const state = { items: [], filter: 'objects', category: '', search: '', busy: false };
 const labels = { active:'Attivo', completed:'Completato', suspended:'Sospeso', abandoned:'Abbandonato', waiting:'In attesa', unplanned:'Non pianificato', tema:'Tema', theme:'Tema', commitment:'Impegno', routine:'Routine', introduction:'Reintroduzione', possibility:'Possibilità' };
 
 async function api(path, options = {}) {
@@ -45,13 +45,16 @@ async function loadMessages() {
 async function loadItems() {
   state.items=await api('/api/items');
   $('#activeCount').textContent=state.items.filter(item=>['active','waiting','unplanned'].includes(item.status)).length;
+  const categories=[...new Set(state.items.map(item=>item.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'it'));
+  $('#itemCategory').innerHTML='<option value="">Tutte</option>'+categories.map(category=>`<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join(''); $('#itemCategory').value=state.category;
   renderItems();
 }
 
 function renderItems() {
-  const isTheme=item=>['tema','theme'].includes(item.kind); const visible=state.filter==='all'?state.items:state.filter==='themes'?state.items.filter(isTheme):state.items.filter(item=>!isTheme(item)&&['active','waiting','unplanned','suspended'].includes(item.status));
+  const isTheme=item=>['tema','theme'].includes(item.kind); const byType=state.filter==='all'?state.items:state.filter==='themes'?state.items.filter(isTheme):state.items.filter(item=>!isTheme(item)&&['active','waiting','unplanned','suspended'].includes(item.status));
+  const needle=state.search.toLocaleLowerCase('it'); const visible=byType.filter(item=>(!state.category||item.category===state.category)&&(!needle||[item.title,item.description,item.context,item.motivation,item.category].filter(Boolean).join(' ').toLocaleLowerCase('it').includes(needle)));
   const list=$('#itemList');
-  if(!visible.length){ list.innerHTML='<div class="empty">Non c’è ancora nulla qui.<br>Parlami di qualcosa che vuoi tenere a mente.</div>'; return; }
+  if(!visible.length){ list.innerHTML='<div class="empty">Nessun elemento corrisponde ai filtri.</div>'; return; }
   list.innerHTML=visible.map(item=>`<article class="item-card" data-id="${item.id}"><h3>${escapeHtml(item.title)}</h3><div class="item-meta">${item.category?`<span class="tag">${escapeHtml(item.category)}</span>`:''}<span class="tag">${labels[item.status]||item.status}</span><span class="tag">${labels[item.kind]||item.kind}</span>${item.recurrence?`<span class="tag">${escapeHtml(recurrenceLabel(item.recurrence))}</span>`:item.due_at?`<span class="tag">entro ${displayDate(item.due_at)}</span>`:''}${item.progress_value!=null?`<span class="tag">${item.progress_value}${item.progress_total?`/${item.progress_total}`:''}</span>`:''}</div></article>`).join('');
   list.querySelectorAll('.item-card').forEach(card=>card.addEventListener('click',()=>openEdit(card.dataset.id)));
 }
@@ -106,6 +109,8 @@ $('#messageInput').addEventListener('keydown',event=>{ if(event.key==='Enter'&&!
 document.querySelectorAll('[data-prompt]').forEach(button=>button.addEventListener('click',()=>sendMessage(button.dataset.prompt)));
 $('#stateToggle').addEventListener('click',openPanel); $('#stateClose').addEventListener('click',closePanel); $('#scrim').addEventListener('click',closePanel);
 $('#filters').addEventListener('click',event=>{ if(!event.target.dataset.filter)return; state.filter=event.target.dataset.filter; document.querySelectorAll('#filters button').forEach(btn=>btn.classList.toggle('active',btn===event.target)); renderItems(); });
+$('#itemSearch').addEventListener('input',event=>{state.search=event.target.value;renderItems();});
+$('#itemCategory').addEventListener('change',event=>{state.category=event.target.value;renderItems();});
 $('#editSchedule').addEventListener('change',updateScheduleFields); $('#editDay').addEventListener('input',updateScheduleFields);
 $('#editClose').addEventListener('click',()=>$('#editDialog').close()); $('#editCancel').addEventListener('click',()=>$('#editDialog').close());
 $('#editForm').addEventListener('submit',async event=>{ event.preventDefault(); const id=$('#editId').value; const schedule=$('#editSchedule').value; const due=$('#editDue').value; const day=Number($('#editDay').value); const weeklyCount=Number($('#editWeeklyCount').value); const weekDays=[...document.querySelectorAll('#weeklyField input:checked')].map(input=>input.value); if(schedule==='monthly'&&(day<1||day>31)){showToast('Inserisci un giorno tra 1 e 31');return;} if(schedule==='weekly_count'&&(weeklyCount<1||weeklyCount>14)){showToast('Inserisci quante volte a settimana');return;} if(schedule==='weekly_days'&&!weekDays.length){showToast('Scegli almeno un giorno');return;} const recurrence=schedule==='monthly'?{frequency:'monthly',day_of_month:day}:schedule==='weekly_count'?{frequency:'weekly',times_per_week:weeklyCount}:schedule==='weekly_days'?{frequency:'weekly',days_of_week:weekDays}:null; try { await api(`/api/items/${id}`,{method:'PATCH',body:JSON.stringify({title:$('#editTitle').value,description:$('#editDescription').value.trim()||null,category:$('#editCategory').value.trim()||null,kind:$('#editKind').value,status:$('#editStatus').value,due_at:schedule==='once'&&due?`${due}T23:59:00Z`:null,recurrence,motivation:$('#editMotivation').value||null})}); $('#editDialog').close(); await loadItems(); showToast('Memoria aggiornata'); } catch(error) { showToast(error.message); } });

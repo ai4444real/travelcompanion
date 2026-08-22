@@ -65,8 +65,12 @@
       <button data-filter="themes">Temi</button>
       <button data-filter="all">Tutto</button>
     </nav>
+    <div class="memory-filters">
+      <label><span>Cerca</span><input id="itemSearch" type="search" placeholder="Titolo, descrizione, contesto…"></label>
+      <label><span>Categoria</span><select id="itemCategory"><option value="">Tutte</option></select></label>
+    </div>
     <div class="item-list" id="itemList"></div>
-    <button class="raw-link" id="rawDataOpen">Dati grezzi <span>↗</span></button>
+    <div class="data-links"><a class="raw-link" href="/data">Dati in tabella <span>↗</span></a><button class="raw-link" id="rawDataOpen">JSON grezzo <span>↗</span></button></div>
   </aside>
 
   <dialog id="editDialog">
