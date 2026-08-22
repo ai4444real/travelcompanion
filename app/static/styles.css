@@ -51,7 +51,7 @@ h1 { margin:0; font-size:clamp(44px,7vw,67px); line-height:.98; }
 .usage-track { grid-column:1/-1; height:4px; margin-top:7px; overflow:hidden; border-radius:4px; background:var(--paper); }.usage-track i { display:block; height:100%; width:0; background:var(--sage); transition:width .3s; }
 .filters { display:flex; gap:8px; margin:25px 0 18px; }
 .filters button.active { background:var(--sage-dark); border-color:var(--sage-dark); color:white; }
-.memory-filters { display:grid; grid-template-columns:1.4fr 1fr; gap:9px; margin-bottom:15px; }
+.memory-filters { display:grid; grid-template-columns:1.4fr 1fr 1fr; gap:9px; margin-bottom:15px; }
 .memory-filters label { display:grid; gap:5px; color:var(--muted); font-size:10px; }
 .memory-filters input,.memory-filters select { width:100%; min-width:0; padding:9px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; outline:0; font-size:12px; }
 .memory-filters input:focus,.memory-filters select:focus { border-color:var(--sage); }
