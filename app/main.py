@@ -14,7 +14,7 @@ from app.ai import build_interpreter
 from app.config import get_settings
 from app.db import Database
 from app.domain import ActionExecutor
-from app.models import ChatRequest, ChatResponse, Item, ItemPatch
+from app.models import ChatRequest, ChatResponse, FocusOrderRequest, Item, ItemPatch
 from app.monitor import Monitor
 from app.repository import Repository
 
@@ -112,6 +112,16 @@ async def messages(limit: int = Query(50, ge=1, le=200)) -> list[dict]:
 @app.get("/api/items", response_model=list[Item])
 async def items(status: list[str] | None = Query(None)) -> list[Item]:
     return repository.list_items(status)
+
+
+@app.put("/api/focus", response_model=list[Item])
+async def set_focus(request: FocusOrderRequest) -> list[Item]:
+    try:
+        return repository.set_focus_order(request.item_ids)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.patch("/api/items/{item_id}", response_model=Item)

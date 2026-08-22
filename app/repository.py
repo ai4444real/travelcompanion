@@ -44,6 +44,7 @@ class Repository:
             "title": data["title"].strip(),
             "description": data.get("description"),
             "category": data.get("category"),
+            "focus_position": data.get("focus_position"),
             "kind": data.get("kind", ItemKind.POSSIBILITY.value),
             "status": data.get("status", ItemStatus.ACTIVE.value),
             "due_at": data.get("due_at"),
@@ -98,6 +99,19 @@ class Repository:
         with self.db.connect() as conn:
             self._audit(conn, "item", item_id, "delete", origin, None, before.model_dump(mode="json"), None)
             conn.execute("DELETE FROM items WHERE id=?", (item_id,))
+
+    def set_focus_order(self, item_ids: list[str]) -> list[Item]:
+        if len(item_ids) != len(set(item_ids)):
+            raise ValueError("Un oggetto compare più di una volta")
+        items = {item.id: item for item in self.list_items()}
+        if any(item_id not in items for item_id in item_ids):
+            raise KeyError("Oggetto non trovato")
+        desired = {item_id: position for position, item_id in enumerate(item_ids, 1)}
+        for item in items.values():
+            position = desired.get(item.id)
+            if item.focus_position != position:
+                self.update_item(item.id, {"focus_position": position}, "manual", None)
+        return sorted((self.get_item(item_id) for item_id in item_ids), key=lambda item: item.focus_position)  # type: ignore[union-attr,return-value]
 
     def add_relation(self, source_id: str, target_id: str, relation_type: str, origin: str, source_message_id: str | None) -> None:
         relation_id = new_id("rel")

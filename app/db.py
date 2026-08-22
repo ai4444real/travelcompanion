@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS items (
     title TEXT NOT NULL,
     description TEXT,
     category TEXT,
+    focus_position INTEGER,
     kind TEXT NOT NULL,
     status TEXT NOT NULL,
     due_at TEXT,
@@ -153,6 +154,8 @@ class Database:
             columns = {row["name"] for row in connection.execute("PRAGMA table_info(items)").fetchall()}
             if "category" not in columns:
                 connection.execute("ALTER TABLE items ADD COLUMN category TEXT")
+            if "focus_position" not in columns:
+                connection.execute("ALTER TABLE items ADD COLUMN focus_position INTEGER")
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:

@@ -47,6 +47,7 @@ class Item(BaseModel):
     title: str
     description: str | None = None
     category: str | None = None
+    focus_position: int | None = None
     kind: ItemKind = ItemKind.POSSIBILITY
     status: ItemStatus = ItemStatus.ACTIVE
     due_at: datetime | None = None
@@ -99,6 +100,7 @@ class ItemPatch(BaseModel):
     title: str | None = None
     description: str | None = None
     category: str | None = None
+    focus_position: int | None = None
     kind: ItemKind | None = None
     status: ItemStatus | None = None
     due_at: datetime | None = None
@@ -115,6 +117,10 @@ class ItemPatch(BaseModel):
     user_assessment: str | None = None
     checkin_cooldown_days: int | None = None
     suspended_until: datetime | None = None
+
+
+class FocusOrderRequest(BaseModel):
+    item_ids: list[str] = Field(default_factory=list, max_length=100)
 
 
 class ActivityRecord(BaseModel):

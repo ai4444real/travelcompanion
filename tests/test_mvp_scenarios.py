@@ -327,3 +327,22 @@ def test_task_can_belong_to_an_existing_theme(tmp_path):
     assert relation["source_item_id"] == task.id
     assert relation["target_item_id"] == theme.id
     assert relation["relation_type"] == "belongs_to"
+
+
+def test_focus_is_an_ordered_optional_selection(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    first = repo.create_item({"title": "Primo"}, "test", None)
+    second = repo.create_item({"title": "Secondo"}, "test", None)
+    repo.set_focus_order([second.id, first.id])
+    assert repo.get_item(second.id).focus_position == 1
+    assert repo.get_item(first.id).focus_position == 2
+    repo.set_focus_order([first.id])
+    assert repo.get_item(first.id).focus_position == 1
+    assert repo.get_item(second.id).focus_position is None
+
+
+def test_theme_can_be_added_to_focus(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    theme = repo.create_item({"title": "Un tema", "kind": "tema"}, "test", None)
+    repo.set_focus_order([theme.id])
+    assert repo.get_item(theme.id).focus_position == 1

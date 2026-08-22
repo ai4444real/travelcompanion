@@ -59,7 +59,9 @@ h1 { margin:0; font-size:clamp(44px,7vw,67px); line-height:.98; }
 .item-card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px; cursor:pointer; transition:.15s ease; }
 .item-card:hover { transform:translateY(-1px); border-color:#abb9ad; }
 .item-card h3 { margin:0 0 8px; font-size:15px; font-weight:600; }
+.item-title { display:flex; justify-content:space-between; gap:10px; }.item-title h3 { flex:1; }.drag-handle { color:var(--muted); cursor:grab; font-size:18px; line-height:1; }.item-card.focused { border-left:3px solid var(--sage); }.item-card.dragging { opacity:.55; }
 .item-meta { display:flex; flex-wrap:wrap; gap:6px; color:var(--muted); font-size:11px; }
+.focus-actions { display:flex; justify-content:flex-end; gap:5px; margin-top:10px; }.focus-actions button { border:1px solid var(--line); border-radius:7px; background:var(--surface); padding:5px 8px; color:var(--muted); font-size:10px; }.focus-actions button:hover { border-color:var(--sage); color:var(--sage-dark); }.focus-actions button:disabled { opacity:.35; cursor:default; }
 .tag { background:var(--paper); border-radius:5px; padding:4px 7px; }
 .empty { border:1px dashed var(--line); padding:30px; text-align:center; color:var(--muted); border-radius:14px; line-height:1.6; }
 .data-links { display:flex; justify-content:center; gap:14px; margin:28px auto 8px; }.raw-link { display:flex; align-items:center; gap:6px; margin:0; padding:6px; border:0; border-bottom:1px solid transparent; background:transparent; color:var(--muted); font-size:12px; text-decoration:none; }.raw-link:hover { color:var(--ink); border-color:var(--ink); }
