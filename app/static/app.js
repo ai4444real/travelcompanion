@@ -44,7 +44,7 @@ async function loadMessages() {
 
 async function loadItems() {
   state.items=await api('/api/items');
-  $('#activeCount').textContent=state.items.filter(item=>['active','waiting','unplanned'].includes(item.status)).length;
+  $('#activeCount').textContent=state.items.filter(item=>!['tema','theme'].includes(item.kind)&&['active','waiting','unplanned'].includes(item.status)).length;
   const categories=[...new Set(state.items.map(item=>item.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'it'));
   $('#itemCategory').innerHTML='<option value="">Tutte</option>'+categories.map(category=>`<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join(''); $('#itemCategory').value=state.category;
   renderItems();
