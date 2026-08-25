@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.db import Database, json_dump, new_id, now_iso, row_to_item
 from app.models import Item, ItemKind, ItemStatus
@@ -47,7 +48,7 @@ class Repository:
             "focus_position": data.get("focus_position"),
             "kind": data.get("kind", ItemKind.POSSIBILITY.value),
             "status": data.get("status", ItemStatus.ACTIVE.value),
-            "due_at": data.get("due_at"),
+            "due_at": self._canonical_due(data.get("due_at")),
             "recurrence_json": json_dump(data["recurrence"]) if data.get("recurrence") else None,
             "target_quantity": data.get("target_quantity"),
             "target_unit": data.get("target_unit"),
@@ -83,6 +84,8 @@ class Repository:
         if "recurrence" in clean:
             recurrence = clean.pop("recurrence")
             clean["recurrence_json"] = json_dump(recurrence) if recurrence else None
+        if clean.get("due_at") is not None:
+            clean["due_at"] = self._canonical_due(clean["due_at"])
         clean["updated_at"] = now_iso()
         assignments = ", ".join(f"{key}=?" for key in clean)
         with self.db.connect() as conn:
@@ -190,12 +193,12 @@ class Repository:
             rows = conn.execute("SELECT * FROM messages ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
         return [dict(row) for row in reversed(rows)]
 
-    def create_checkin(self, item_id: str | None, message: str, reason: str, score: float) -> dict[str, Any]:
+    def create_checkin(self, item_id: str | None, message: str, reason: str, score: float, target_due_at: str | None = None) -> dict[str, Any]:
         checkin_id = new_id("checkin")
         timestamp = now_iso()
         with self.db.connect() as conn:
-            conn.execute("INSERT INTO checkins(id,item_id,message,reason,score,status,created_at) VALUES(?,?,?,?,?,'pending',?)", (checkin_id, item_id, message, reason, score, timestamp))
-        return {"id": checkin_id, "item_id": item_id, "message": message, "reason": reason, "score": score, "status": "pending", "created_at": timestamp}
+            conn.execute("INSERT INTO checkins(id,item_id,message,reason,score,target_due_at,status,created_at) VALUES(?,?,?,?,?,?,'pending',?)", (checkin_id, item_id, message, reason, score, target_due_at, timestamp))
+        return {"id": checkin_id, "item_id": item_id, "message": message, "reason": reason, "score": score, "target_due_at": target_due_at, "status": "pending", "created_at": timestamp}
 
     def pending_checkins(self) -> list[dict[str, Any]]:
         with self.db.connect() as conn:
@@ -208,6 +211,10 @@ class Repository:
     def resolve_pending_checkins(self, item_id: str) -> None:
         with self.db.connect() as conn:
             self._resolve_pending_checkins(conn, item_id)
+
+    def set_checkin_target_due(self, checkin_id: str, target_due_at: str) -> None:
+        with self.db.connect() as conn:
+            conn.execute("UPDATE checkins SET target_due_at=? WHERE id=? AND target_due_at IS NULL", (target_due_at, checkin_id))
 
     @staticmethod
     def _resolve_pending_checkins(conn: Any, item_id: str) -> None:
@@ -224,6 +231,25 @@ class Repository:
     def audit_log(self, limit: int = 100) -> list[dict[str, Any]]:
         with self.db.connect() as conn:
             return [dict(row) for row in conn.execute("SELECT * FROM audit_log ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()]
+
+    @staticmethod
+    def _canonical_due(value: Any) -> str | None:
+        if value is None or value == "":
+            return None
+        local_timezone = ZoneInfo("Europe/Zurich")
+        if isinstance(value, str):
+            stripped = value.strip()
+            if len(stripped) == 10:
+                parsed = datetime.combine(date.fromisoformat(stripped), time(23, 59, 59), tzinfo=local_timezone)
+            else:
+                parsed = datetime.fromisoformat(stripped.replace("Z", "+00:00"))
+        elif isinstance(value, datetime):
+            parsed = value
+        else:
+            raise ValueError("Formato data non valido")
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=local_timezone)
+        return parsed.astimezone(UTC).isoformat()
 
     def record_ai_usage(self, usage: dict[str, Any]) -> None:
         with self.db.connect() as conn:

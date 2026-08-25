@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS checkins (
     message TEXT NOT NULL,
     reason TEXT NOT NULL,
     score REAL NOT NULL,
+    target_due_at TEXT,
     status TEXT NOT NULL DEFAULT 'pending',
     created_at TEXT NOT NULL,
     delivered_at TEXT,
@@ -156,6 +157,9 @@ class Database:
                 connection.execute("ALTER TABLE items ADD COLUMN category TEXT")
             if "focus_position" not in columns:
                 connection.execute("ALTER TABLE items ADD COLUMN focus_position INTEGER")
+            checkin_columns = {row["name"] for row in connection.execute("PRAGMA table_info(checkins)").fetchall()}
+            if "target_due_at" not in checkin_columns:
+                connection.execute("ALTER TABLE checkins ADD COLUMN target_due_at TEXT")
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:

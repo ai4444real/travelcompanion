@@ -27,7 +27,7 @@ class Monitor:
                 continue
             candidate = self.evaluate(item, now)
             if candidate and candidate["score"] >= self.THRESHOLD:
-                created.append(self.repository.create_checkin(item.id, candidate["message"], candidate["reason"], candidate["score"]))
+                created.append(self.repository.create_checkin(item.id, candidate["message"], candidate["reason"], candidate["score"], candidate.get("target_due_at")))
                 self.repository.update_item(item.id, {"last_checked_at": now.isoformat()}, "monitor", None)
         return created
 
@@ -91,8 +91,7 @@ class Monitor:
         if score < self.THRESHOLD:
             return None
         if effective_due:
-            days_left = max(0, (effective_due.astimezone(self.timezone).date() - now.astimezone(self.timezone).date()).days)
-            due_phrase = "oggi" if days_left == 0 else "domani" if days_left == 1 else f"tra {days_left} giorni"
+            due_phrase = self._due_phrase(effective_due, now)
             progress = ""
             if item.progress_value is not None and item.progress_total:
                 progress = f" Sei a {item.progress_value:g} su {item.progress_total:g}."
@@ -105,10 +104,65 @@ class Monitor:
                 else:
                     estimate = f"{remaining_minutes:g} minuti"
                 effort = f" La stima residua è circa {estimate}, oltre a un margine di {margin_days:g} giorni."
-            message = f"“{item.title}” ha una scadenza {due_phrase}.{progress}{effort} È ancora realistico o c'è qualcosa da rinegoziare?"
+            message = self._due_message(item.title, due_phrase, progress, effort)
         else:
             message = f"È da un po' che non verifichiamo “{item.title}”. È ancora qualcosa che vuoi mantenere attivo?"
-        return {"score": round(score, 3), "reason": "; ".join(reason) or "verifica contestuale", "message": message}
+        return {"score": round(score, 3), "reason": "; ".join(reason) or "verifica contestuale", "message": message, "target_due_at": effective_due.isoformat() if effective_due else None}
+
+    def pending_checkins(self, now: datetime | None = None) -> list[dict[str, Any]]:
+        now = now or datetime.now(UTC)
+        rendered: list[dict[str, Any]] = []
+        for checkin in self.repository.pending_checkins():
+            row = dict(checkin)
+            item = self.repository.get_item(row["item_id"]) if row.get("item_id") else None
+            if item:
+                target_due = self._checkin_due(row, item)
+                if target_due:
+                    progress = f" Sei a {item.progress_value:g} su {item.progress_total:g}." if item.progress_value is not None and item.progress_total else ""
+                    row["message"] = self._due_message(item.title, self._due_phrase(target_due, now), progress, "")
+            rendered.append(row)
+        return rendered
+
+    def backfill_pending_targets(self) -> None:
+        for checkin in self.repository.pending_checkins():
+            if checkin.get("target_due_at") or not checkin.get("item_id"):
+                continue
+            item = self.repository.get_item(checkin["item_id"])
+            if item:
+                target_due = self._checkin_due(checkin, item)
+                if target_due:
+                    self.repository.set_checkin_target_due(checkin["id"], target_due.isoformat())
+
+    def _checkin_due(self, checkin: dict[str, Any], item: Item) -> datetime | None:
+        if checkin.get("target_due_at"):
+            return self._aware(datetime.fromisoformat(str(checkin["target_due_at"]).replace("Z", "+00:00")))
+        if item.due_at:
+            return self._aware(item.due_at)
+        recurrence = item.recurrence or {}
+        if recurrence.get("frequency") == "monthly" and recurrence.get("day_of_month"):
+            created = self._aware(datetime.fromisoformat(str(checkin["created_at"]).replace("Z", "+00:00")))
+            return self._effective_due(item, created)
+        return None
+
+    def _due_phrase(self, due: datetime, now: datetime) -> str:
+        days_left = (due.astimezone(self.timezone).date() - now.astimezone(self.timezone).date()).days
+        if days_left == 0:
+            return "oggi"
+        if days_left == 1:
+            return "domani"
+        if days_left > 1:
+            return f"tra {days_left} giorni"
+        if days_left == -1:
+            return "ieri"
+        return f"da {-days_left} giorni"
+
+    @staticmethod
+    def _due_message(title: str, phrase: str, progress: str, effort: str) -> str:
+        if phrase == "ieri" or phrase.startswith("da "):
+            opening = f"“{title}” è scaduto {phrase}."
+        else:
+            opening = f"“{title}” ha una scadenza {phrase}."
+        return f"{opening}{progress}{effort} È ancora realistico o c'è qualcosa da rinegoziare?"
 
     def _effective_due(self, item: Item, now: datetime) -> datetime | None:
         if item.due_at:

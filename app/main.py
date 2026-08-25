@@ -46,6 +46,7 @@ async def monitor_loop() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     db.initialize()
+    monitor.backfill_pending_targets()
     task = asyncio.create_task(monitor_loop())
     yield
     task.cancel()
@@ -153,7 +154,7 @@ async def activities(item_id: str | None = None) -> list[dict]:
 
 @app.get("/api/checkins")
 async def checkins() -> list[dict]:
-    return repository.pending_checkins()
+    return monitor.pending_checkins()
 
 
 @app.post("/api/checkins/run")

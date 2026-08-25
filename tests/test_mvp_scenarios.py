@@ -346,3 +346,31 @@ def test_theme_can_be_added_to_focus(tmp_path):
     theme = repo.create_item({"title": "Un tema", "kind": "tema"}, "test", None)
     repo.set_focus_order([theme.id])
     assert repo.get_item(theme.id).focus_position == 1
+
+
+def test_pending_checkin_recalculates_relative_deadline_when_read(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Chiamare consulente", "due_at": "2026-08-25T17:00:00Z"}, "test", None)
+    repo.create_checkin(item.id, "Scadenza tra due giorni", "test", 0.8, "2026-08-25T17:00:00+00:00")
+    monitor = Monitor(repo, "Europe/Zurich")
+    today = monitor.pending_checkins(datetime(2026, 8, 25, 9, 0, tzinfo=UTC))[0]
+    overdue = monitor.pending_checkins(datetime(2026, 8, 27, 9, 0, tzinfo=UTC))[0]
+    assert "scadenza oggi" in today["message"]
+    assert "scaduto da 2 giorni" in overdue["message"]
+
+
+def test_legacy_monthly_checkin_uses_occurrence_near_creation(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Fatture", "recurrence": {"frequency": "monthly", "day_of_month": 25}}, "test", None)
+    checkin = repo.create_checkin(item.id, "Scadenza domani", "test", 0.8)
+    with repo.db.connect() as conn:
+        conn.execute("UPDATE checkins SET created_at=? WHERE id=?", ("2026-08-23T22:00:00+00:00", checkin["id"]))
+    rendered = Monitor(repo, "Europe/Zurich").pending_checkins(datetime(2026, 8, 25, 9, 0, tzinfo=UTC))[0]
+    assert "scadenza oggi" in rendered["message"]
+
+
+def test_due_dates_are_stored_as_canonical_utc(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Scadenza locale", "due_at": "2026-09-01"}, "test", None)
+    assert item.due_at is not None
+    assert item.due_at.isoformat() == "2026-09-01T21:59:59+00:00"
