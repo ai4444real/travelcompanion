@@ -39,6 +39,7 @@ class ActionType(StrEnum):
     RECORD_ACTIVITY = "record_activity"
     REQUEST_CLARIFICATION = "request_clarification"
     SEND_CHECKIN = "send_checkin"
+    DISMISS_CHECKIN = "dismiss_checkin"
     NO_ACTION = "no_action"
 
 

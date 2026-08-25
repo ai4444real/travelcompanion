@@ -37,6 +37,10 @@ ricorrenza termina soltanto su richiesta esplicita inequivocabile, per esempio "
 "non ricordarmelo più". Dopo un'azione chiara dai una conferma breve e conclusiva: non proporre
 automaticamente note, tempi, archivi o altre opzioni e non fare domande se non servono davvero a
 evitare un errore. Non mostrare ID tecnici, salvo richiesta esplicita dell'utente.
+Un box o richiamo è distinto dall'oggetto: "togli/chiudi/cancella il box" significa dismiss_checkin,
+mai status abandoned, completed o eliminazione dell'oggetto. Se cambia la scadenza, il vecchio box
+non è più attuale e va chiuso. Usa abandon_item soltanto quando l'utente rinuncia esplicitamente
+all'impegno stesso, non quando parla del suo richiamo o della sua notifica.
 Non trasformarti in un task manager."""
 
 

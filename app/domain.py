@@ -32,6 +32,8 @@ class ActionExecutor:
         if action.type == ActionType.UPDATE_ITEM:
             changes = dict(action.data)
             current = self.repository.get_item(action.item_id)
+            if changes.get("status") == ItemStatus.ABANDONED.value:
+                changes.pop("status")
             if current and current.recurrence and changes.get("status") == ItemStatus.COMPLETED.value:
                 changes.pop("status")
                 self.repository.record_activity(action.item_id, {
@@ -40,7 +42,12 @@ class ActionExecutor:
                 }, source_message_id)
                 if not changes:
                     return self.repository.get_item(action.item_id)
-            return self.repository.update_item(action.item_id, changes, "conversation", source_message_id)
+            if not changes:
+                return current
+            updated = self.repository.update_item(action.item_id, changes, "conversation", source_message_id)
+            if "due_at" in changes or "recurrence" in changes:
+                self.repository.resolve_pending_checkins(action.item_id)
+            return updated
         if action.type == ActionType.COMPLETE_ITEM:
             current = self.repository.get_item(action.item_id)
             if current and current.recurrence:
@@ -59,6 +66,9 @@ class ActionExecutor:
             return self.repository.update_item(action.item_id, changes, "conversation", source_message_id)
         if action.type == ActionType.ABANDON_ITEM:
             return self.repository.update_item(action.item_id, {"status": ItemStatus.ABANDONED.value}, "conversation", source_message_id)
+        if action.type == ActionType.DISMISS_CHECKIN:
+            self.repository.resolve_pending_checkins(action.item_id)
+            return self.repository.get_item(action.item_id)
         if action.type == ActionType.UPDATE_ESTIMATE:
             return self.repository.update_item(action.item_id, {"estimate_minutes": action.data.get("estimate_minutes")}, "conversation", source_message_id)
         if action.type == ActionType.RECORD_PROGRESS:

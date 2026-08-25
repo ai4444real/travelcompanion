@@ -392,3 +392,26 @@ def test_conversation_update_cannot_mark_recurring_item_completed(tmp_path):
     executor.execute([Action(type=ActionType.UPDATE_ITEM, item_id=item.id, data={"status": "completed"}, confidence=1)], repo.add_message("user", "Fatto"))
     assert repo.get_item(item.id).status == "active"
     assert len(repo.list_activity_records(item.id)) == 1
+
+
+def test_rescheduling_closes_old_checkin_without_abandoning_item(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Chiamare consulente", "due_at": "2026-08-25T17:00:00Z"}, "test", None)
+    repo.create_checkin(item.id, "Scade oggi", "test", 0.8, "2026-08-25T17:00:00Z")
+    executor.execute([Action(type=ActionType.UPDATE_ITEM, item_id=item.id, data={
+        "due_at": "2026-08-28T15:00:00Z", "estimate_minutes": 30, "status": "abandoned",
+    }, confidence=1)], repo.add_message("user", "Sposta la scadenza e cancella il box"))
+    updated = repo.get_item(item.id)
+    assert updated.status == "active"
+    assert updated.estimate_minutes == 30
+    assert updated.due_at.isoformat() == "2026-08-28T15:00:00+00:00"
+    assert repo.pending_checkins() == []
+
+
+def test_dismiss_checkin_does_not_change_item_status(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Un impegno"}, "test", None)
+    repo.create_checkin(item.id, "Ne parliamo?", "test", 0.8)
+    executor.execute([Action(type=ActionType.DISMISS_CHECKIN, item_id=item.id, confidence=1)], repo.add_message("user", "Togli il box"))
+    assert repo.get_item(item.id).status == "active"
+    assert repo.pending_checkins() == []
