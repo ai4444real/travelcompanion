@@ -374,3 +374,21 @@ def test_due_dates_are_stored_as_canonical_utc(tmp_path):
     item = repo.create_item({"title": "Scadenza locale", "due_at": "2026-09-01"}, "test", None)
     assert item.due_at is not None
     assert item.due_at.isoformat() == "2026-09-01T21:59:59+00:00"
+
+
+def test_completing_recurring_item_records_occurrence_and_keeps_it_active(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Fatture", "kind": "commitment", "recurrence": {"frequency": "monthly", "day_of_month": 25}}, "test", None)
+    repo.create_checkin(item.id, "Scade oggi", "test", 0.8)
+    executor.execute([Action(type=ActionType.COMPLETE_ITEM, item_id=item.id, confidence=1)], repo.add_message("user", "Fatto"))
+    assert repo.get_item(item.id).status == "active"
+    assert len(repo.list_activity_records(item.id)) == 1
+    assert repo.pending_checkins() == []
+
+
+def test_conversation_update_cannot_mark_recurring_item_completed(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Stipendi", "recurrence": {"frequency": "monthly", "day_of_month": 26}}, "test", None)
+    executor.execute([Action(type=ActionType.UPDATE_ITEM, item_id=item.id, data={"status": "completed"}, confidence=1)], repo.add_message("user", "Fatto"))
+    assert repo.get_item(item.id).status == "active"
+    assert len(repo.list_activity_records(item.id)) == 1

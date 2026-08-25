@@ -30,8 +30,25 @@ class ActionExecutor:
         if not action.item_id or not self.repository.get_item(action.item_id):
             return None
         if action.type == ActionType.UPDATE_ITEM:
-            return self.repository.update_item(action.item_id, action.data, "conversation", source_message_id)
+            changes = dict(action.data)
+            current = self.repository.get_item(action.item_id)
+            if current and current.recurrence and changes.get("status") == ItemStatus.COMPLETED.value:
+                changes.pop("status")
+                self.repository.record_activity(action.item_id, {
+                    "record_type": "occurrence", "source_type": "explicit",
+                    "note": "Occorrenza ricorrente completata.",
+                }, source_message_id)
+                if not changes:
+                    return self.repository.get_item(action.item_id)
+            return self.repository.update_item(action.item_id, changes, "conversation", source_message_id)
         if action.type == ActionType.COMPLETE_ITEM:
+            current = self.repository.get_item(action.item_id)
+            if current and current.recurrence:
+                self.repository.record_activity(action.item_id, {
+                    "record_type": "occurrence", "source_type": "explicit",
+                    "note": "Occorrenza ricorrente completata.",
+                }, source_message_id)
+                return self.repository.get_item(action.item_id)
             item = self.repository.update_item(action.item_id, {"status": ItemStatus.COMPLETED.value}, "conversation", source_message_id)
             self.repository.resolve_pending_checkins(action.item_id)
             return item

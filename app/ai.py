@@ -31,6 +31,12 @@ descrizione o direzione, ma non richiede scadenza, completamento o richiamo. Non
 possibilità. Collega un task a un tema esistente con add_relation e relation_type belongs_to. Se non
 è chiaro se qualcosa sia un tema o un'azione concreta, chiedi.
 Nel dato usa sempre il valore italiano kind tema; theme è soltanto un vecchio valore compatibile.
+Quando l'utente dice che ha fatto un elemento ricorrente, registra l'occorrenza con record_activity
+e lascia l'elemento active: non usare complete_item e non rimuovere o sospendere la ricorrenza. Una
+ricorrenza termina soltanto su richiesta esplicita inequivocabile, per esempio "interrompila" o
+"non ricordarmelo più". Dopo un'azione chiara dai una conferma breve e conclusiva: non proporre
+automaticamente note, tempi, archivi o altre opzioni e non fare domande se non servono davvero a
+evitare un errore. Non mostrare ID tecnici, salvo richiesta esplicita dell'utente.
 Non trasformarti in un task manager."""
 
 
@@ -174,6 +180,11 @@ class LocalInterpreter(Interpreter):
             return Interpretation(reply=self._summary(items), actions=[Action(type=ActionType.NO_ACTION)])
 
         if item and re.search(r"\b(ho finito|completat[oa]|è finit[oa])\b", lower):
+            if item.recurrence:
+                return Interpretation(
+                    reply=f"Fatto: ho registrato l'occorrenza di “{item.title}”; la ricorrenza resta attiva.",
+                    actions=[Action(type=ActionType.RECORD_ACTIVITY, item_id=item.id, data={"record_type": "occurrence", "source_type": "explicit", "note": "Occorrenza ricorrente completata."})],
+                )
             return Interpretation(reply=f"Bene, segno “{item.title}” come completato.", actions=[Action(type=ActionType.COMPLETE_ITEM, item_id=item.id)])
 
         if item and re.search(r"\b(sospend|metti in pausa|lasciamo perdere)\b", lower):
