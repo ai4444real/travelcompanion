@@ -1,5 +1,5 @@
 const $ = (selector) => document.querySelector(selector);
-const state = { items: [], filter: 'objects', category: '', search: '', schedule: 'unscheduled', busy: false };
+const state = { items: [], activities: [], filter: 'objects', category: '', search: '', schedule: 'unscheduled', busy: false };
 const labels = { active:'Attivo', completed:'Completato', suspended:'Sospeso', abandoned:'Abbandonato', waiting:'In attesa', unplanned:'Non pianificato', tema:'Tema', theme:'Tema', commitment:'Impegno', routine:'Routine', introduction:'Reintroduzione', possibility:'Possibilità' };
 
 async function api(path, options = {}) {
@@ -49,6 +49,7 @@ async function loadItems() {
   $('#itemCategory').innerHTML='<option value="">Tutte</option>'+categories.map(category=>`<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join(''); $('#itemCategory').value=state.category;
   renderItems();
 }
+async function loadActivities(){state.activities=await api('/api/activities');}
 
 function renderItems() {
   const isTheme=item=>['tema','theme'].includes(item.kind); const byType=state.filter==='focus'?[...state.items].filter(item=>item.focus_position!=null).sort((a,b)=>a.focus_position-b.focus_position):state.filter==='all'?state.items:state.filter==='themes'?state.items.filter(isTheme):state.items.filter(item=>!isTheme(item)&&['active','waiting','unplanned','suspended'].includes(item.status));
@@ -83,7 +84,7 @@ async function loadUsage() {
 async function sendMessage(message) {
   if(state.busy) return; state.busy=true; $('#intro').hidden=true; addMessage('user',message); const pending=addMessage('assistant','',true);
   $('#messageInput').value=''; resizeComposer(); $('.send').disabled=true;
-  try { const result=await api('/api/chat',{method:'POST',body:JSON.stringify({message})}); pending.remove(); addMessage('assistant',result.reply); await Promise.all([loadItems(),loadUsage()]); }
+  try { const result=await api('/api/chat',{method:'POST',body:JSON.stringify({message})}); pending.remove(); addMessage('assistant',result.reply); await Promise.all([loadItems(),loadActivities(),loadUsage()]); }
   catch(error){ pending.remove(); addMessage('assistant',`Non sono riuscito a elaborare il messaggio: ${error.message}`); }
   finally { state.busy=false; $('.send').disabled=false; $('#messageInput').focus(); }
 }
@@ -101,8 +102,12 @@ function openEdit(id){
   $('#editId').value=id; $('#editTitle').value=item.title; $('#editDescription').value=item.description||''; $('#editCategory').value=item.category||''; $('#editKind').value=item.kind==='theme'?'tema':item.kind; $('#editStatus').value=item.status; $('#editDue').value=item.due_at?.slice(0,10)||'';
   $('#editDay').value=item.recurrence?.day_of_month||''; $('#editWeeklyCount').value=item.recurrence?.times_per_week||''; $('#editSchedule').value=item.recurrence?.frequency==='monthly'?'monthly':item.recurrence?.days_of_week?'weekly_days':item.recurrence?.times_per_week?'weekly_count':item.due_at?'once':'none';
   const selectedDays=new Set(item.recurrence?.days_of_week||[]); document.querySelectorAll('#weeklyField input').forEach(input=>input.checked=selectedDays.has(input.value));
+  const activities=state.activities.filter(entry=>entry.item_id===id).sort((a,b)=>String(b.period_start).localeCompare(String(a.period_start))); $('#editActivities').innerHTML=activities.length?activities.map(entry=>`<article><time>${escapeHtml(activityDate(entry.period_start))}</time><div>${escapeHtml(activitySummary(entry))}</div></article>`).join(''):'<p>Nessuna attività ancora registrata.</p>';
   $('#editMotivation').value=item.motivation||''; updateScheduleFields(); $('#editDialog').showModal();
 }
+
+function activityDate(value){const text=String(value||'');if(/^\d{4}-\d{2}-\d{2}$/.test(text))return text.split('-').reverse().join('.');return displayDate(value);}
+function activitySummary(entry){const parts=[];if(entry.count!=null&&entry.count!==1)parts.push(`${entry.count} volte`);if(entry.quantity!=null)parts.push(`${entry.quantity} ${entry.unit||''}`.trim());if(entry.note)parts.push(entry.note);return parts.join(' · ')||'Occorrenza completata';}
 
 function resizeComposer(){ const input=$('#messageInput'); input.style.height='auto'; input.style.height=`${Math.min(input.scrollHeight,160)}px`; }
 async function loadRawData(){ $('#rawDataContent').textContent='Caricamento…'; try { const data=await api('/api/debug/raw'); $('#rawDataContent').textContent=JSON.stringify(data,null,2); } catch(error) { $('#rawDataContent').textContent=`Errore: ${error.message}`; } }
@@ -126,5 +131,5 @@ $('#rawDataClose').addEventListener('click',()=>$('#rawDialog').close()); $('#ra
 $('#rawDataCopy').addEventListener('click',async()=>{ try { await navigator.clipboard.writeText($('#rawDataContent').textContent); showToast('JSON copiato'); } catch { showToast('Copia non disponibile'); } });
 document.addEventListener('keydown',event=>{if(event.key==='Escape')closePanel();});
 
-Promise.all([loadMessages(),loadItems(),loadCheckins(),loadUsage()]).catch(error=>showToast(error.message));
+Promise.all([loadMessages(),loadItems(),loadActivities(),loadCheckins(),loadUsage()]).catch(error=>showToast(error.message));
 if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');

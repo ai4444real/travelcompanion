@@ -72,7 +72,7 @@
       <label><span>Pianificazione</span><select id="itemScheduleFilter"><option value="unscheduled">Senza data o ricorrenza</option><option value="scheduled">Con data o ricorrenza</option><option value="all">Tutti</option></select></label>
     </div>
     <div class="item-list" id="itemList"></div>
-    <div class="data-links"><a class="raw-link" href="/data">Dati in tabella <span>↗</span></a><button class="raw-link" id="rawDataOpen">JSON grezzo <span>↗</span></button></div>
+    <div class="data-links"><a class="raw-link" href="/history">Cronologia <span>↗</span></a><a class="raw-link" href="/data">Dati in tabella <span>↗</span></a><button class="raw-link" id="rawDataOpen">JSON grezzo <span>↗</span></button></div>
   </aside>
 
   <dialog id="editDialog">
@@ -97,6 +97,7 @@
       <label id="monthlyField" hidden>Giorno del mese<input id="editDay" type="number" min="1" max="31" inputmode="numeric"></label>
       <p class="next-occurrence" id="nextOccurrence" hidden></p>
       <label>Perché conta<textarea id="editMotivation" rows="3"></textarea></label>
+      <section class="activity-history"><div class="activity-head"><h3>Attività registrate</h3><a href="/history">Vedi tutto ↗</a></div><div id="editActivities" class="activity-list"></div></section>
       <div class="dialog-actions"><button type="button" class="danger" id="deleteItem">Elimina</button><span></span><button type="button" id="editCancel">Annulla</button><button type="submit" class="primary">Salva</button></div>
     </form>
   </dialog>

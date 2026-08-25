@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#efe9de">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/history.css">
+  <title>Cronologia · Compagno di viaggio</title>
+</head>
+<body>
+  <header class="history-head"><div><p>Ciò che è accaduto</p><h1>Cronologia</h1></div><a href="/">Torna alla conversazione</a></header>
+  <main>
+    <section class="controls">
+      <label>Cerca<input id="search" type="search" placeholder="Nota, oggetto, categoria…"></label>
+      <label>Categoria<select id="category"><option value="">Tutte</option></select></label>
+      <label>Oggetto<select id="item"><option value="">Tutti</option></select></label>
+      <label>Dal<input id="from" type="date"></label>
+      <label>Al<input id="to" type="date"></label>
+    </section>
+    <div class="summary"><strong id="count">0</strong><span>attività registrate</span><button id="refresh">Aggiorna</button></div>
+    <section class="timeline" id="timeline"></section>
+    <p class="empty" id="empty" hidden>Nessuna attività corrisponde ai filtri.</p>
+  </main>
+  <div class="toast" id="toast"></div>
+  <script src="/static/history.js" defer></script>
+</body>
+</html>
