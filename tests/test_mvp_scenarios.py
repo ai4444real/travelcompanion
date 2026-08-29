@@ -442,3 +442,30 @@ def test_fixed_weekly_recurrence_does_not_remind_if_already_done_that_day(tmp_pa
     }}, "test", None)
     repo.record_activity(item.id, {"record_type": "occurrence", "period_start": "2026-08-27"}, "test")
     assert Monitor(repo, "Europe/Zurich").run(datetime(2026, 8, 27, 8, 0, tzinfo=UTC)) == []
+
+
+def test_weekly_quota_warns_once_when_remaining_days_get_tight(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Correre", "kind": "routine", "recurrence": {
+        "frequency": "weekly", "times_per_week": 3,
+    }}, "test", None)
+    monitor = Monitor(repo, "Europe/Zurich")
+    assert monitor.run(datetime(2026, 8, 26, 8, 0, tzinfo=UTC)) == []
+    created = monitor.run(datetime(2026, 8, 27, 8, 0, tzinfo=UTC))
+    assert len(created) == 1
+    assert "0 su 3" in created[0]["message"]
+    repo.record_activity(item.id, {"record_type": "occurrence", "period_start": "2026-08-28"}, "test")
+    assert monitor.run(datetime(2026, 8, 29, 8, 0, tzinfo=UTC)) == []
+
+
+def test_weekly_quota_counts_current_week_activities(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Palestra", "kind": "routine", "recurrence": {
+        "frequency": "weekly", "times_per_week": 2,
+    }}, "test", None)
+    repo.record_activity(item.id, {"record_type": "occurrence", "period_start": "2026-08-25"}, "test")
+    monitor = Monitor(repo, "Europe/Zurich")
+    created = monitor.run(datetime(2026, 8, 29, 8, 0, tzinfo=UTC))
+    assert len(created) == 1
+    assert "1 su 2" in created[0]["message"]
+    assert "Restano 1" in created[0]["message"]

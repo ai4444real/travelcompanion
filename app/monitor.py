@@ -23,9 +23,17 @@ class Monitor:
         created: list[dict[str, Any]] = []
         pending_item_ids = {row["item_id"] for row in self.repository.pending_checkins()}
         for item in self.repository.list_items(["active", "waiting", "unplanned", "suspended"]):
-            weekly_days = (item.recurrence or {}).get("days_of_week") if (item.recurrence or {}).get("frequency") == "weekly" else None
+            recurrence = item.recurrence or {}
+            weekly_days = recurrence.get("days_of_week") if recurrence.get("frequency") == "weekly" else None
+            weekly_quota = recurrence.get("times_per_week") if recurrence.get("frequency") == "weekly" else None
             if weekly_days:
                 candidate = self._weekly_candidate(item, now)
+                if not candidate:
+                    continue
+            elif weekly_quota:
+                if item.id in pending_item_ids:
+                    continue
+                candidate = self._weekly_quota_candidate(item, now)
                 if not candidate:
                     continue
             elif item.id in pending_item_ids or not self._eligible(item, now):
@@ -54,17 +62,49 @@ class Monitor:
         message = f"Oggi è {days_it.get(day_name, day_name)}: è previsto “{item.title}”. È ancora realistico farlo oggi?"
         return {"score": 1.0, "reason": "occorrenza settimanale prevista oggi", "message": message, "target_due_at": target_iso}
 
+    def _weekly_quota_candidate(self, item: Item, now: datetime) -> dict[str, Any] | None:
+        if item.status != "active":
+            return None
+        goal = int((item.recurrence or {}).get("times_per_week") or 0)
+        if goal < 1:
+            return None
+        local_now = now.astimezone(self.timezone)
+        week_start = local_now.date() - timedelta(days=local_now.weekday())
+        week_end = week_start + timedelta(days=6)
+        completed = self._activity_count_between(item.id, week_start, week_end)
+        remaining = max(0, goal - completed)
+        days_remaining = (week_end - local_now.date()).days + 1
+        if remaining == 0 or days_remaining > remaining + 1:
+            return None
+        target = datetime(week_end.year, week_end.month, week_end.day, 23, 59, 59, tzinfo=self.timezone).astimezone(UTC)
+        target_iso = target.isoformat()
+        if self.repository.has_checkin_for_target(item.id, target_iso):
+            return None
+        message = f"Questa settimana risultano {completed} su {goal} per “{item.title}”. Restano {remaining}: vuoi recuperarne una oggi?"
+        return {"score": 1.0, "reason": "obiettivo settimanale a rischio", "message": message, "target_due_at": target_iso}
+
+    def _activity_count_between(self, item_id: str, start_date: Any, end_date: Any) -> int:
+        total = 0
+        for record in self.repository.list_activity_records(item_id):
+            if record.get("record_type") != "occurrence":
+                continue
+            activity_date = self._activity_local_date(record)
+            if activity_date and start_date <= activity_date <= end_date:
+                total += max(1, int(record.get("count") or 1))
+        return total
+
+    def _activity_local_date(self, record: dict[str, Any]) -> Any:
+        raw = str(record.get("period_start") or "")
+        try:
+            if len(raw) == 10:
+                return datetime.fromisoformat(raw).date()
+            return datetime.fromisoformat(raw.replace("Z", "+00:00")).astimezone(self.timezone).date()
+        except ValueError:
+            return None
+
     def _has_activity_on_local_date(self, item_id: str, target_date: Any) -> bool:
         for record in self.repository.list_activity_records(item_id):
-            raw = str(record.get("period_start") or "")
-            try:
-                if len(raw) == 10:
-                    activity_date = datetime.fromisoformat(raw).date()
-                else:
-                    activity_date = datetime.fromisoformat(raw.replace("Z", "+00:00")).astimezone(self.timezone).date()
-            except ValueError:
-                continue
-            if activity_date == target_date:
+            if self._activity_local_date(record) == target_date:
                 return True
         return False
 
