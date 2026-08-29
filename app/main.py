@@ -100,7 +100,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     message = request.message.strip()
     user_message_id = repository.add_message("user", message)
     try:
-        result = await interpreter.interpret(message, repository.list_items(), repository.recent_messages())
+        result = await interpreter.interpret(message, repository.list_items(), repository.recent_messages(), repository.list_checkins())
         if result.provider_usage:
             repository.record_ai_usage(result.provider_usage)
         changed = executor.execute(result.actions, user_message_id)

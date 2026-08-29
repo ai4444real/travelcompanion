@@ -415,3 +415,30 @@ def test_dismiss_checkin_does_not_change_item_status(tmp_path):
     executor.execute([Action(type=ActionType.DISMISS_CHECKIN, item_id=item.id, confidence=1)], repo.add_message("user", "Togli il box"))
     assert repo.get_item(item.id).status == "active"
     assert repo.pending_checkins() == []
+
+
+def test_fixed_weekly_recurrence_creates_checkin_on_each_scheduled_day(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Controllo richiami", "kind": "routine", "recurrence": {
+        "frequency": "weekly", "days_of_week": ["tuesday", "thursday"],
+    }}, "test", None)
+    monitor = Monitor(repo, "Europe/Zurich")
+    tuesday = datetime(2026, 8, 25, 8, 0, tzinfo=UTC)
+    created = monitor.run(tuesday)
+    assert len(created) == 1
+    assert "martedì" in created[0]["message"]
+    assert monitor.run(tuesday + timedelta(hours=1)) == []
+    repo.record_activity(item.id, {"record_type": "occurrence", "period_start": "2026-08-25"}, "test")
+    thursday = datetime(2026, 8, 27, 8, 0, tzinfo=UTC)
+    created = monitor.run(thursday)
+    assert len(created) == 1
+    assert "giovedì" in created[0]["message"]
+
+
+def test_fixed_weekly_recurrence_does_not_remind_if_already_done_that_day(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Controllo richiami", "kind": "routine", "recurrence": {
+        "frequency": "weekly", "days_of_week": ["thursday"],
+    }}, "test", None)
+    repo.record_activity(item.id, {"record_type": "occurrence", "period_start": "2026-08-27"}, "test")
+    assert Monitor(repo, "Europe/Zurich").run(datetime(2026, 8, 27, 8, 0, tzinfo=UTC)) == []

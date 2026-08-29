@@ -208,6 +208,20 @@ class Repository:
                 ORDER BY c.score DESC, c.created_at"""
             ).fetchall()]
 
+    def list_checkins(self, limit: int = 100) -> list[dict[str, Any]]:
+        with self.db.connect() as conn:
+            return [dict(row) for row in conn.execute(
+                "SELECT * FROM checkins ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()]
+
+    def has_checkin_for_target(self, item_id: str, target_due_at: str) -> bool:
+        with self.db.connect() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM checkins WHERE item_id=? AND target_due_at=? LIMIT 1",
+                (item_id, target_due_at),
+            ).fetchone()
+        return row is not None
+
     def resolve_pending_checkins(self, item_id: str) -> None:
         with self.db.connect() as conn:
             self._resolve_pending_checkins(conn, item_id)

@@ -41,6 +41,11 @@ Un box o richiamo è distinto dall'oggetto: "togli/chiudi/cancella il box" signi
 mai status abandoned, completed o eliminazione dell'oggetto. Se cambia la scadenza, il vecchio box
 non è più attuale e va chiuso. Usa abandon_item soltanto quando l'utente rinuncia esplicitamente
 all'impegno stesso, non quando parla del suo richiamo o della sua notifica.
+Non dedurre mai che un richiamo sia avvenuto dalla sola ricorrenza. Usa i dati checkins: created_at
+significa che il box è stato generato, delivered_at che l'utente ha premuto "Parliamone". Se per
+quella data non esiste un checkin, dichiara chiaramente che il richiamo non è stato generato. Non
+inventare consegne, visualizzazioni, attività o registrazioni. Davanti a un errore accertato spiega
+il fatto in modo breve, senza proporre liste di opzioni non richieste.
 Non trasformarti in un task manager."""
 
 
@@ -111,7 +116,7 @@ INTERPRETATION_SCHEMA: dict[str, Any] = {
 
 class Interpreter(ABC):
     @abstractmethod
-    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]]) -> Interpretation: ...
+    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]], checkins: list[dict[str, Any]] | None = None) -> Interpretation: ...
 
 
 class OpenAIInterpreter(Interpreter):
@@ -122,8 +127,8 @@ class OpenAIInterpreter(Interpreter):
         self.cached_input_price = cached_input_price
         self.output_price = output_price
 
-    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]]) -> Interpretation:
-        state = [item.model_dump(mode="json", exclude_none=True) for item in items]
+    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]], checkins: list[dict[str, Any]] | None = None) -> Interpretation:
+        state = {"items": [item.model_dump(mode="json", exclude_none=True) for item in items], "checkins": (checkins or [])[:100]}
         context = [{"role": msg["role"], "content": msg["content"]} for msg in recent_messages[-12:]]
         current_time = datetime.now(UTC).isoformat()
         payload = {
@@ -175,7 +180,7 @@ class OpenAIInterpreter(Interpreter):
 class LocalInterpreter(Interpreter):
     """Useful offline baseline covering the acceptance scenarios; not a general NLU system."""
 
-    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]]) -> Interpretation:
+    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]], checkins: list[dict[str, Any]] | None = None) -> Interpretation:
         text = message.strip()
         lower = self._normalize_numbers(text.lower())
         item = self._resolve_item(lower, items)

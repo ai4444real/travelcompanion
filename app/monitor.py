@@ -23,13 +23,50 @@ class Monitor:
         created: list[dict[str, Any]] = []
         pending_item_ids = {row["item_id"] for row in self.repository.pending_checkins()}
         for item in self.repository.list_items(["active", "waiting", "unplanned", "suspended"]):
-            if item.id in pending_item_ids or not self._eligible(item, now):
+            weekly_days = (item.recurrence or {}).get("days_of_week") if (item.recurrence or {}).get("frequency") == "weekly" else None
+            if weekly_days:
+                candidate = self._weekly_candidate(item, now)
+                if not candidate:
+                    continue
+            elif item.id in pending_item_ids or not self._eligible(item, now):
                 continue
-            candidate = self.evaluate(item, now)
+            else:
+                candidate = self.evaluate(item, now)
             if candidate and candidate["score"] >= self.THRESHOLD:
                 created.append(self.repository.create_checkin(item.id, candidate["message"], candidate["reason"], candidate["score"], candidate.get("target_due_at")))
                 self.repository.update_item(item.id, {"last_checked_at": now.isoformat()}, "monitor", None)
         return created
+
+    def _weekly_candidate(self, item: Item, now: datetime) -> dict[str, Any] | None:
+        if item.status != "active":
+            return None
+        recurrence = item.recurrence or {}
+        scheduled_days = {str(day).lower() for day in recurrence.get("days_of_week", [])}
+        local_now = now.astimezone(self.timezone)
+        day_name = local_now.strftime("%A").lower()
+        if day_name not in scheduled_days:
+            return None
+        target = datetime(local_now.year, local_now.month, local_now.day, 23, 59, 59, tzinfo=self.timezone).astimezone(UTC)
+        target_iso = target.isoformat()
+        if self.repository.has_checkin_for_target(item.id, target_iso) or self._has_activity_on_local_date(item.id, local_now.date()):
+            return None
+        days_it = {"monday": "lunedì", "tuesday": "martedì", "wednesday": "mercoledì", "thursday": "giovedì", "friday": "venerdì", "saturday": "sabato", "sunday": "domenica"}
+        message = f"Oggi è {days_it.get(day_name, day_name)}: è previsto “{item.title}”. È ancora realistico farlo oggi?"
+        return {"score": 1.0, "reason": "occorrenza settimanale prevista oggi", "message": message, "target_due_at": target_iso}
+
+    def _has_activity_on_local_date(self, item_id: str, target_date: Any) -> bool:
+        for record in self.repository.list_activity_records(item_id):
+            raw = str(record.get("period_start") or "")
+            try:
+                if len(raw) == 10:
+                    activity_date = datetime.fromisoformat(raw).date()
+                else:
+                    activity_date = datetime.fromisoformat(raw.replace("Z", "+00:00")).astimezone(self.timezone).date()
+            except ValueError:
+                continue
+            if activity_date == target_date:
+                return True
+        return False
 
     def evaluate(self, item: Item, now: datetime) -> dict[str, Any] | None:
         if item.status != "active" or item.kind in {"tema", "theme"}:
