@@ -20,6 +20,33 @@ function recurrenceLabel(recurrence) {
   if(recurrence.period==='day') return 'ogni giorno';
   return 'ricorrente';
 }
+function localDay(value) {
+  const text=String(value||'');
+  if(/^\d{4}-\d{2}-\d{2}$/.test(text)){const [year,month,day]=text.split('-').map(Number);return new Date(year,month-1,day);}
+  const date=new Date(value); return Number.isNaN(date.getTime())?null:new Date(date.getFullYear(),date.getMonth(),date.getDate());
+}
+function periodRange(frequency, now=new Date()) {
+  const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  if(frequency==='weekly'){const monday=new Date(today);monday.setDate(today.getDate()-((today.getDay()+6)%7));const sunday=new Date(monday);sunday.setDate(monday.getDate()+6);return [monday,sunday];}
+  if(frequency==='monthly')return [new Date(today.getFullYear(),today.getMonth(),1),new Date(today.getFullYear(),today.getMonth()+1,0)];
+  if(['yearly','annual'].includes(frequency))return [new Date(today.getFullYear(),0,1),new Date(today.getFullYear(),11,31)];
+  return null;
+}
+function rangeLabel(start,end) {
+  const short=date=>new Intl.DateTimeFormat('it-IT',{day:'numeric',month:'short'}).format(date).replace('.','');
+  if(start.getMonth()===end.getMonth())return `${start.getDate()}–${short(end)}`;
+  return `${short(start)}–${short(end)}`;
+}
+function recurrenceStatus(item) {
+  const recurrence=item.recurrence;if(!recurrence)return '';
+  const range=periodRange(recurrence.frequency);if(!range)return '';
+  const [start,end]=range;const period=recurrence.frequency==='weekly'?'Settimana':recurrence.frequency==='monthly'?'Mese':'Anno';
+  if(recurrence.frequency==='weekly'&&recurrence.times_per_week){
+    const completed=state.activities.filter(entry=>entry.item_id===item.id&&entry.record_type==='occurrence').reduce((total,entry)=>{const day=localDay(entry.period_start);return day&&day>=start&&day<=end?total+Math.max(1,Number(entry.count)||1):total;},0);
+    const goal=Number(recurrence.times_per_week),remaining=Math.max(0,goal-completed);return `${period} ${rangeLabel(start,end)} · ${completed} su ${goal} · ${remaining===0?'obiettivo raggiunto':remaining===1?'ne manca 1':`ne mancano ${remaining}`}`;
+  }
+  return `${period} ${rangeLabel(start,end)}`;
+}
 function nextMonthlyOccurrence(day) {
   const now=new Date(); let year=now.getFullYear(),month=now.getMonth();
   const makeDate=()=>new Date(year,month,Math.min(day,new Date(year,month+1,0).getDate()),23,59,59);
@@ -49,14 +76,14 @@ async function loadItems() {
   $('#itemCategory').innerHTML='<option value="">Tutte</option>'+categories.map(category=>`<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join(''); $('#itemCategory').value=state.category;
   renderItems();
 }
-async function loadActivities(){state.activities=await api('/api/activities');}
+async function loadActivities(){state.activities=await api('/api/activities');if(state.items.length)renderItems();}
 
 function renderItems() {
   const isTheme=item=>['tema','theme'].includes(item.kind); const byType=state.filter==='focus'?[...state.items].filter(item=>item.focus_position!=null).sort((a,b)=>a.focus_position-b.focus_position):state.filter==='all'?state.items:state.filter==='themes'?state.items.filter(isTheme):state.items.filter(item=>!isTheme(item)&&['active','waiting','unplanned','suspended'].includes(item.status));
   const needle=state.search.toLocaleLowerCase('it'); const matchesSchedule=item=>state.filter==='focus'||isTheme(item)||state.schedule==='all'||(state.schedule==='scheduled')===Boolean(item.due_at||item.recurrence); const visible=byType.filter(item=>matchesSchedule(item)&&(!state.category||item.category===state.category)&&(!needle||[item.title,item.description,item.context,item.motivation,item.category].filter(Boolean).join(' ').toLocaleLowerCase('it').includes(needle)));
   const list=$('#itemList');
   if(!visible.length){ list.innerHTML='<div class="empty">Nessun elemento corrisponde ai filtri.</div>'; return; }
-  list.innerHTML=visible.map((item,index)=>`<article class="item-card${item.focus_position!=null?' focused':''}" data-id="${item.id}" ${state.filter==='focus'?'draggable="true"':''}><div class="item-title"><h3>${escapeHtml(item.title)}</h3>${state.filter==='focus'?`<span class="drag-handle" title="Trascina">↕</span>`:''}</div><div class="item-meta">${item.category?`<span class="tag">${escapeHtml(item.category)}</span>`:''}<span class="tag">${labels[item.status]||item.status}</span><span class="tag">${labels[item.kind]||item.kind}</span>${item.recurrence?`<span class="tag">${escapeHtml(recurrenceLabel(item.recurrence))}</span>`:item.due_at?`<span class="tag">entro ${displayDate(item.due_at)}</span>`:''}${item.progress_value!=null?`<span class="tag">${item.progress_value}${item.progress_total?`/${item.progress_total}`:''}</span>`:''}</div><div class="focus-actions">${state.filter==='focus'?`<button data-focus="up" ${index===0?'disabled':''} aria-label="Sposta su">↑</button><button data-focus="down" ${index===visible.length-1?'disabled':''} aria-label="Sposta giù">↓</button><button data-focus="remove">Rimuovi</button>`:`<button data-focus="${item.focus_position!=null?'remove':'add'}">${item.focus_position!=null?'✓ In vista':'+ In vista'}</button>`}</div></article>`).join('');
+  list.innerHTML=visible.map((item,index)=>`<article class="item-card${item.focus_position!=null?' focused':''}" data-id="${item.id}" ${state.filter==='focus'?'draggable="true"':''}><div class="item-title"><h3>${escapeHtml(item.title)}</h3>${state.filter==='focus'?`<span class="drag-handle" title="Trascina">↕</span>`:''}</div><div class="item-meta">${item.category?`<span class="tag">${escapeHtml(item.category)}</span>`:''}<span class="tag">${labels[item.status]||item.status}</span><span class="tag">${labels[item.kind]||item.kind}</span>${item.recurrence?`<span class="tag">${escapeHtml(recurrenceLabel(item.recurrence))}</span>`:item.due_at?`<span class="tag">entro ${displayDate(item.due_at)}</span>`:''}${item.progress_value!=null?`<span class="tag">${item.progress_value}${item.progress_total?`/${item.progress_total}`:''}</span>`:''}</div>${recurrenceStatus(item)?`<p class="recurrence-status">${escapeHtml(recurrenceStatus(item))}</p>`:''}<div class="focus-actions">${state.filter==='focus'?`<button data-focus="up" ${index===0?'disabled':''} aria-label="Sposta su">↑</button><button data-focus="down" ${index===visible.length-1?'disabled':''} aria-label="Sposta giù">↓</button><button data-focus="remove">Rimuovi</button>`:`<button data-focus="${item.focus_position!=null?'remove':'add'}">${item.focus_position!=null?'✓ In vista':'+ In vista'}</button>`}</div></article>`).join('');
   list.querySelectorAll('.item-card').forEach(card=>{card.addEventListener('click',event=>{if(!event.target.closest('[data-focus]'))openEdit(card.dataset.id);});card.addEventListener('dragstart',event=>event.dataTransfer.setData('text/plain',card.dataset.id));card.addEventListener('dragover',event=>event.preventDefault());card.addEventListener('drop',event=>{event.preventDefault();moveFocus(event.dataTransfer.getData('text/plain'),card.dataset.id);});});
 }
 
@@ -102,6 +129,7 @@ function openEdit(id){
   $('#editId').value=id; $('#editTitle').value=item.title; $('#editDescription').value=item.description||''; $('#editCategory').value=item.category||''; $('#editKind').value=item.kind==='theme'?'tema':item.kind; $('#editStatus').value=item.status; $('#editDue').value=item.due_at?.slice(0,10)||'';
   $('#editDay').value=item.recurrence?.day_of_month||''; $('#editWeeklyCount').value=item.recurrence?.times_per_week||''; $('#editSchedule').value=item.recurrence?.frequency==='monthly'?'monthly':item.recurrence?.days_of_week?'weekly_days':item.recurrence?.times_per_week?'weekly_count':item.due_at?'once':'none';
   const selectedDays=new Set(item.recurrence?.days_of_week||[]); document.querySelectorAll('#weeklyField input').forEach(input=>input.checked=selectedDays.has(input.value));
+  const status=recurrenceStatus(item);$('#editRecurrenceStatus').textContent=status;$('#editRecurrenceStatus').hidden=!status;
   const activities=state.activities.filter(entry=>entry.item_id===id).sort((a,b)=>String(b.period_start).localeCompare(String(a.period_start))); $('#editActivities').innerHTML=activities.length?activities.map(entry=>`<article><time>${escapeHtml(activityDate(entry.period_start))}</time><div>${escapeHtml(activitySummary(entry))}</div></article>`).join(''):'<p>Nessuna attività ancora registrata.</p>';
   $('#editMotivation').value=item.motivation||''; updateScheduleFields(); $('#editDialog').showModal();
 }

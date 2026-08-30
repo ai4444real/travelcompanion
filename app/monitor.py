@@ -59,7 +59,9 @@ class Monitor:
         if self.repository.has_checkin_for_target(item.id, target_iso) or self._has_activity_on_local_date(item.id, local_now.date()):
             return None
         days_it = {"monday": "lunedì", "tuesday": "martedì", "wednesday": "mercoledì", "thursday": "giovedì", "friday": "venerdì", "saturday": "sabato", "sunday": "domenica"}
-        message = f"Oggi è {days_it.get(day_name, day_name)}: è previsto “{item.title}”. È ancora realistico farlo oggi?"
+        week_start = local_now.date() - timedelta(days=local_now.weekday())
+        week_end = week_start + timedelta(days=6)
+        message = f"Settimana {self._date_range_it(week_start, week_end)} · oggi è {days_it.get(day_name, day_name)}: è previsto “{item.title}”. È ancora realistico farlo oggi?"
         return {"score": 1.0, "reason": "occorrenza settimanale prevista oggi", "message": message, "target_due_at": target_iso}
 
     def _weekly_quota_candidate(self, item: Item, now: datetime) -> dict[str, Any] | None:
@@ -80,7 +82,7 @@ class Monitor:
         target_iso = target.isoformat()
         if self.repository.has_checkin_for_target(item.id, target_iso):
             return None
-        message = f"Questa settimana risultano {completed} su {goal} per “{item.title}”. Restano {remaining}: vuoi recuperarne una oggi?"
+        message = f"Settimana {self._date_range_it(week_start, week_end)} · {completed} su {goal} per “{item.title}”. Restano {remaining}: vuoi recuperarne una oggi?"
         return {"score": 1.0, "reason": "obiettivo settimanale a rischio", "message": message, "target_due_at": target_iso}
 
     def _activity_count_between(self, item_id: str, start_date: Any, end_date: Any) -> int:
@@ -182,6 +184,8 @@ class Monitor:
                     estimate = f"{remaining_minutes:g} minuti"
                 effort = f" La stima residua è circa {estimate}, oltre a un margine di {margin_days:g} giorni."
             message = self._due_message(item.title, due_phrase, progress, effort)
+            if (item.recurrence or {}).get("frequency") == "monthly":
+                message = f"Mese di {self._month_it(effective_due.astimezone(self.timezone).month)} · {message}"
         else:
             message = f"È da un po' che non verifichiamo “{item.title}”. È ancora qualcosa che vuoi mantenere attivo?"
         return {"score": round(score, 3), "reason": "; ".join(reason) or "verifica contestuale", "message": message, "target_due_at": effective_due.isoformat() if effective_due else None}
@@ -194,9 +198,12 @@ class Monitor:
             item = self.repository.get_item(row["item_id"]) if row.get("item_id") else None
             if item:
                 target_due = self._checkin_due(row, item)
-                if target_due:
+                recurrence_frequency = (item.recurrence or {}).get("frequency")
+                if target_due and recurrence_frequency != "weekly":
                     progress = f" Sei a {item.progress_value:g} su {item.progress_total:g}." if item.progress_value is not None and item.progress_total else ""
                     row["message"] = self._due_message(item.title, self._due_phrase(target_due, now), progress, "")
+                    if recurrence_frequency == "monthly":
+                        row["message"] = f"Mese di {self._month_it(target_due.astimezone(self.timezone).month)} · {row['message']}"
             rendered.append(row)
         return rendered
 
@@ -275,3 +282,13 @@ class Monitor:
         if value.tzinfo is None:
             value = value.replace(tzinfo=self.timezone)
         return value.astimezone(UTC)
+
+    @staticmethod
+    def _month_it(month: int) -> str:
+        return ("gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre")[month - 1]
+
+    @classmethod
+    def _date_range_it(cls, start: Any, end: Any) -> str:
+        if start.month == end.month:
+            return f"{start.day}–{end.day} {cls._month_it(end.month)}"
+        return f"{start.day} {cls._month_it(start.month)[:3]}–{end.day} {cls._month_it(end.month)[:3]}"

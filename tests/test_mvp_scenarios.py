@@ -427,6 +427,7 @@ def test_fixed_weekly_recurrence_creates_checkin_on_each_scheduled_day(tmp_path)
     created = monitor.run(tuesday)
     assert len(created) == 1
     assert "martedì" in created[0]["message"]
+    assert "Settimana 24–30 agosto" in created[0]["message"]
     assert monitor.run(tuesday + timedelta(hours=1)) == []
     repo.record_activity(item.id, {"record_type": "occurrence", "period_start": "2026-08-25"}, "test")
     thursday = datetime(2026, 8, 27, 8, 0, tzinfo=UTC)
@@ -454,6 +455,7 @@ def test_weekly_quota_warns_once_when_remaining_days_get_tight(tmp_path):
     created = monitor.run(datetime(2026, 8, 27, 8, 0, tzinfo=UTC))
     assert len(created) == 1
     assert "0 su 3" in created[0]["message"]
+    assert "Settimana 24–30 agosto" in created[0]["message"]
     repo.record_activity(item.id, {"record_type": "occurrence", "period_start": "2026-08-28"}, "test")
     assert monitor.run(datetime(2026, 8, 29, 8, 0, tzinfo=UTC)) == []
 
@@ -469,3 +471,16 @@ def test_weekly_quota_counts_current_week_activities(tmp_path):
     assert len(created) == 1
     assert "1 su 2" in created[0]["message"]
     assert "Restano 1" in created[0]["message"]
+
+
+def test_weekly_checkin_keeps_explicit_period_when_rendered(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Richiami", "kind": "routine", "recurrence": {
+        "frequency": "weekly", "days_of_week": ["thursday"],
+    }}, "test", None)
+    monitor = Monitor(repo, "Europe/Zurich")
+    monitor.run(datetime(2026, 8, 27, 8, 0, tzinfo=UTC))
+    rendered = monitor.pending_checkins(datetime(2026, 8, 27, 9, 0, tzinfo=UTC))
+    assert len(rendered) == 1
+    assert "Settimana 24–30 agosto" in rendered[0]["message"]
+    assert "oggi è giovedì" in rendered[0]["message"]
