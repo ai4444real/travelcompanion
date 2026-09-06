@@ -5,6 +5,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urlencode
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -95,6 +96,22 @@ class GoogleCalendar:
             row["blocks_time"] = row.get("transparency") != "transparent"
             row["protected_time"] = row.get("category") == "protected_personal"
         return rows
+
+    def planning_context(self, start: datetime, end: datetime, timezone: str) -> list[dict[str, Any]]:
+        zone = ZoneInfo(timezone)
+        context: list[dict[str, Any]] = []
+        for event in self.events_between(start, end, include_transparent=True):
+            def local(value: str) -> str:
+                if len(value) == 10:
+                    return value
+                return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(zone).isoformat()
+            context.append({
+                "summary": event["summary"], "starts_at": local(event["starts_at"]),
+                "ends_at": local(event["ends_at"]), "all_day": bool(event["all_day"]),
+                "category": event["category"], "category_code": event["category_code"],
+                "blocks_time": event["blocks_time"], "protected_time": event["protected_time"],
+            })
+        return context
 
     async def _access_token(self) -> str:
         token = self._get("access_token")

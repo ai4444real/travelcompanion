@@ -102,8 +102,10 @@ async function loadCheckins() {
 
 async function loadUsage() {
   const usage=await api('/api/usage');
+  const month=new Intl.DateTimeFormat('it-IT',{month:'long'}).format(new Date(usage.month_start));
+  $('#usagePeriod').textContent=`Uso AI · ${month}`;
   $('#usageCost').textContent=`$${Number(usage.estimated_cost_usd).toFixed(4)} / $${Number(usage.monthly_budget_usd).toFixed(2)}`;
-  $('#usageDetail').textContent=`${usage.request_count} richieste · ${usage.total_tokens} token`;
+  $('#usageDetail').textContent=`Dal 1° ${month} · ${usage.request_count} richieste · ${usage.total_tokens} token`;
   const percent=usage.monthly_budget_usd?Math.min(100,usage.estimated_cost_usd/usage.monthly_budget_usd*100):100;
   $('#usageBar').style.width=`${Math.max(percent,percent>0?1:0)}%`;
 }

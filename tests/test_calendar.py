@@ -51,6 +51,18 @@ def test_personal_free_time_and_gym_are_protected(tmp_path):
     assert service._classify("PALESTRA") == ("protected_personal", None)
 
 
+def test_planning_context_converts_utc_to_local_timezone(tmp_path):
+    service = calendar(tmp_path)
+    service._store_event({
+        "id": "local-time", "summary": "coaching - MiPu", "status": "confirmed",
+        "start": {"dateTime": "2026-09-07T07:00:00Z"},
+        "end": {"dateTime": "2026-09-07T08:00:00Z"},
+    })
+    events = service.planning_context(datetime(2026, 9, 7, tzinfo=UTC), datetime(2026, 9, 8, tzinfo=UTC), "Europe/Zurich")
+    assert events[0]["starts_at"] == "2026-09-07T09:00:00+02:00"
+    assert events[0]["ends_at"] == "2026-09-07T10:00:00+02:00"
+
+
 def test_prune_removes_calendar_events_beyond_operational_window(tmp_path):
     service = calendar(tmp_path)
     service._set("sync_time_max", "2026-12-05T00:00:00+00:00")

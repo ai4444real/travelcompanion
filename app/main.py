@@ -90,8 +90,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
     try:
         calendar_status = await calendar.sync()
         now = datetime.now(UTC)
-        calendar_events = calendar.events_between(now, now + timedelta(days=14), include_transparent=True)
-        result = await interpreter.interpret(message, repository.list_items(), repository.recent_messages(), repository.list_checkins(), {"status": calendar_status, "events": calendar_events})
+        calendar_events = calendar.planning_context(now, now + timedelta(days=14), settings.timezone)
+        result = await interpreter.interpret(message, repository.list_items(), repository.recent_messages(), repository.list_checkins(), {"status": calendar_status, "timezone": settings.timezone, "events": calendar_events})
         if result.provider_usage:
             repository.record_ai_usage(result.provider_usage)
         changed = executor.execute(result.actions, user_message_id)
