@@ -112,13 +112,24 @@ class GoogleCalendar:
 
     async def _sync_events(self, access_token: str) -> int:
         sync_token = self._get("sync_token")
+        window_created_at = self._get("sync_window_created_at")
+        window_expired = not window_created_at or datetime.fromisoformat(window_created_at) < datetime.now(UTC) - timedelta(days=30)
+        # Older versions created an unbounded sync token, which expanded recurring
+        # events decades into the future. Reset it once, and periodically roll the window.
+        if sync_token and (not self._get("sync_time_max") or window_expired):
+            self._delete("sync_token")
+            sync_token = None
         params: dict[str, Any] = {"singleEvents": "true", "showDeleted": "true", "maxResults": 2500}
         if sync_token:
             params["syncToken"] = sync_token
         else:
-            time_min = self._get("sync_time_min") or (datetime.now(UTC) - timedelta(days=30)).isoformat()
+            time_min = (datetime.now(UTC) - timedelta(days=30)).isoformat()
+            time_max = (datetime.now(UTC) + timedelta(days=90)).isoformat()
             self._set("sync_time_min", time_min)
+            self._set("sync_time_max", time_max)
+            self._set("sync_window_created_at", now_iso())
             params["timeMin"] = time_min
+            params["timeMax"] = time_max
         changed = 0
         async with httpx.AsyncClient(timeout=30) as client:
             while True:
@@ -168,8 +179,10 @@ class GoogleCalendar:
 
     def _prune(self) -> None:
         cutoff = (datetime.now(UTC) - timedelta(days=60)).isoformat()
+        ceiling = self._get("sync_time_max") or (datetime.now(UTC) + timedelta(days=90)).isoformat()
         with self.db.connect() as conn:
             conn.execute("DELETE FROM calendar_events WHERE ends_at<?", (cutoff,))
+            conn.execute("DELETE FROM calendar_events WHERE starts_at>?", (ceiling,))
 
     @staticmethod
     def _canonical_event_time(value: str | None) -> str | None:

@@ -39,3 +39,16 @@ def test_transparent_and_cancelled_events_do_not_block_time(tmp_path):
     service._store_event({**base, "id": "gone", "summary": "Annullato", "status": "cancelled"})
     events = service.events_between(datetime.now(UTC) - timedelta(days=30), datetime.now(UTC) + timedelta(days=30))
     assert events == []
+
+
+def test_prune_removes_calendar_events_beyond_operational_window(tmp_path):
+    service = calendar(tmp_path)
+    service._set("sync_time_max", "2026-12-05T00:00:00+00:00")
+    service._store_event({
+        "id": "too-far", "summary": "Ricorrenza lontana", "status": "confirmed",
+        "start": {"dateTime": "2056-01-01T09:00:00+01:00"},
+        "end": {"dateTime": "2056-01-01T10:00:00+01:00"},
+    })
+    service._prune()
+    with service.db.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM calendar_events").fetchone()[0] == 0
