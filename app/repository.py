@@ -312,6 +312,7 @@ class Repository:
             "checkins": "created_at, id",
             "audit_log": "created_at, id",
             "ai_usage": "created_at, id",
+            "calendar_events": "starts_at, event_id",
         }
         snapshot: dict[str, list[dict[str, Any]]] = {}
         with self.db.connect() as conn:

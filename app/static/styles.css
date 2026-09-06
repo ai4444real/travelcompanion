@@ -49,6 +49,8 @@ h1 { margin:0; font-size:clamp(44px,7vw,67px); line-height:.98; }
 .usage-card { margin:20px 0; padding:15px; border:1px solid var(--line); border-radius:12px; background:#fff; display:grid; grid-template-columns:1fr auto; gap:4px 12px; }
 .usage-card span,.usage-card small { color:var(--muted); font-size:11px; }.usage-card strong { font-size:15px; }.usage-card small { grid-column:1/-1; }
 .usage-track { grid-column:1/-1; height:4px; margin-top:7px; overflow:hidden; border-radius:4px; background:var(--paper); }.usage-track i { display:block; height:100%; width:0; background:var(--sage); transition:width .3s; }
+.calendar-card { margin:-10px 0 20px; padding:15px; border:1px solid var(--line); border-radius:12px; background:#fff; display:grid; grid-template-columns:1fr auto; gap:5px 12px; }
+.calendar-card span,.calendar-card small { color:var(--muted); font-size:11px; }.calendar-card strong { font-size:12px; }.calendar-card small,.calendar-card a { grid-column:1/-1; }.calendar-card a { width:max-content; margin-top:5px; color:var(--sage-dark); font-size:11px; }
 .filters { display:flex; gap:8px; margin:25px 0 18px; }
 .filters button.active { background:var(--sage-dark); border-color:var(--sage-dark); color:white; }
 .memory-filters { display:grid; grid-template-columns:1.4fr 1fr 1fr; gap:9px; margin-bottom:15px; }

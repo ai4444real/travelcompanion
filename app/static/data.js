@@ -1,5 +1,5 @@
 const $=selector=>document.querySelector(selector);
-const labels={items:'Oggetti',relations:'Relazioni',progress_events:'Progressi',activity_records:'Attività',messages:'Messaggi',checkins:'Richiami',audit_log:'Modifiche',ai_usage:'Uso AI'};
+const labels={items:'Oggetti',relations:'Relazioni',progress_events:'Progressi',activity_records:'Attività',messages:'Messaggi',checkins:'Richiami',audit_log:'Modifiche',ai_usage:'Uso AI',calendar_events:'Calendario'};
 const state={snapshot:{},table:'items',search:'',category:''};
 
 function showToast(text){const node=$('#toast');node.textContent=text;node.classList.add('show');setTimeout(()=>node.classList.remove('show'),2200);}

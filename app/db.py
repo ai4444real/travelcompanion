@@ -128,11 +128,35 @@ CREATE TABLE IF NOT EXISTS ai_usage (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS calendar_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS calendar_events (
+    event_id TEXT PRIMARY KEY,
+    calendar_id TEXT NOT NULL,
+    summary TEXT,
+    starts_at TEXT NOT NULL,
+    ends_at TEXT NOT NULL,
+    all_day INTEGER NOT NULL DEFAULT 0,
+    transparency TEXT,
+    event_status TEXT,
+    event_type TEXT,
+    category TEXT,
+    category_code TEXT,
+    google_updated_at TEXT,
+    etag TEXT,
+    cached_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_items_status_due ON items(status, due_at);
 CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_checkins_status ON checkins(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_ai_usage_created ON ai_usage(created_at);
 CREATE INDEX IF NOT EXISTS idx_activity_item_period ON activity_records(item_id, period_start, period_end);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_period ON calendar_events(starts_at, ends_at);
 """
 
 

@@ -108,10 +108,21 @@ async function loadUsage() {
   $('#usageBar').style.width=`${Math.max(percent,percent>0?1:0)}%`;
 }
 
+function calendarTime(value){return value?new Intl.DateTimeFormat('it-IT',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(value)):'mai';}
+async function loadCalendarStatus(status=null) {
+  status=status||await api('/api/calendar/status');
+  const connect=$('#calendarConnect');connect.hidden=!status.configured||status.connected;
+  if(!status.configured){$('#calendarState').textContent='Da configurare';$('#calendarDetail').textContent='Mancano le credenziali Google sul server.';return;}
+  if(!status.connected){$('#calendarState').textContent='Non collegato';$('#calendarDetail').textContent='Pronto per il collegamento in sola lettura.';return;}
+  $('#calendarState').textContent=status.ok?'Collegato':'Dati non aggiornati';
+  $('#calendarDetail').textContent=status.last_error?`Ultimo tentativo non riuscito: ${status.last_error}`:`Aggiornato ${calendarTime(status.last_sync_at)} · ${status.event_count} eventi nella finestra`;
+}
+async function reactiveRefresh(){const result=await api('/api/refresh',{method:'POST'});await loadCalendarStatus(result.calendar);return result;}
+
 async function sendMessage(message) {
   if(state.busy) return; state.busy=true; $('#intro').hidden=true; addMessage('user',message); const pending=addMessage('assistant','',true);
   $('#messageInput').value=''; resizeComposer(); $('.send').disabled=true;
-  try { const result=await api('/api/chat',{method:'POST',body:JSON.stringify({message})}); pending.remove(); addMessage('assistant',result.reply); await Promise.all([loadItems(),loadActivities(),loadUsage()]); }
+  try { const result=await api('/api/chat',{method:'POST',body:JSON.stringify({message})}); pending.remove(); addMessage('assistant',result.reply); await Promise.all([loadItems(),loadActivities(),loadUsage(),loadCalendarStatus(),loadCheckins()]); }
   catch(error){ pending.remove(); addMessage('assistant',`Non sono riuscito a elaborare il messaggio: ${error.message}`); }
   finally { state.busy=false; $('.send').disabled=false; $('#messageInput').focus(); }
 }
@@ -159,5 +170,7 @@ $('#rawDataClose').addEventListener('click',()=>$('#rawDialog').close()); $('#ra
 $('#rawDataCopy').addEventListener('click',async()=>{ try { await navigator.clipboard.writeText($('#rawDataContent').textContent); showToast('JSON copiato'); } catch { showToast('Copia non disponibile'); } });
 document.addEventListener('keydown',event=>{if(event.key==='Escape')closePanel();});
 
-Promise.all([loadMessages(),loadItems(),loadActivities(),loadCheckins(),loadUsage()]).catch(error=>showToast(error.message));
+async function startApp(){await reactiveRefresh();await Promise.all([loadMessages(),loadItems(),loadActivities(),loadCheckins(),loadUsage(),loadCalendarStatus()]);}
+startApp().catch(error=>showToast(error.message));
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reactiveRefresh().then(()=>loadCheckins()).catch(error=>showToast(error.message));});
 if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');

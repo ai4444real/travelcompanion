@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import asyncio
-import contextlib
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -11,6 +10,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app.ai import build_interpreter
+from app.calendar import GoogleCalendar
 from app.config import get_settings
 from app.db import Database
 from app.domain import ActionExecutor
@@ -32,26 +32,14 @@ interpreter = build_interpreter(
 )
 executor = ActionExecutor(repository)
 monitor = Monitor(repository, settings.timezone)
-
-
-async def monitor_loop() -> None:
-    while True:
-        try:
-            monitor.run()
-        except Exception as exc:
-            print(f"Monitor error: {exc}")
-        await asyncio.sleep(settings.monitor_interval_seconds)
+calendar = GoogleCalendar(db, settings.google_client_id, settings.google_client_secret, settings.google_redirect_uri)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     db.initialize()
     monitor.backfill_pending_targets()
-    task = asyncio.create_task(monitor_loop())
     yield
-    task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await task
 
 
 app = FastAPI(title="Compagno di viaggio AI", version="0.1.0", lifespan=lifespan)
@@ -100,10 +88,14 @@ async def chat(request: ChatRequest) -> ChatResponse:
     message = request.message.strip()
     user_message_id = repository.add_message("user", message)
     try:
-        result = await interpreter.interpret(message, repository.list_items(), repository.recent_messages(), repository.list_checkins())
+        calendar_status = await calendar.sync()
+        now = datetime.now(UTC)
+        calendar_events = calendar.events_between(now, now + timedelta(days=14))
+        result = await interpreter.interpret(message, repository.list_items(), repository.recent_messages(), repository.list_checkins(), {"status": calendar_status, "events": calendar_events})
         if result.provider_usage:
             repository.record_ai_usage(result.provider_usage)
         changed = executor.execute(result.actions, user_message_id)
+        monitor.run()
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Provider AI non disponibile: {exc}") from exc
     repository.add_message("assistant", result.reply, {"actions": [action.model_dump(mode="json") for action in result.actions]})
@@ -165,6 +157,44 @@ async def checkins() -> list[dict]:
 @app.post("/api/checkins/run")
 async def run_checkins() -> dict[str, list[dict]]:
     return {"created": monitor.run()}
+
+
+@app.post("/api/refresh")
+async def refresh() -> dict:
+    calendar_status = await calendar.sync()
+    created = monitor.run()
+    return {"calendar": calendar_status, "checkins_created": len(created)}
+
+
+@app.get("/api/calendar/status")
+async def calendar_status() -> dict:
+    return calendar.status()
+
+
+@app.get("/api/calendar/events")
+async def calendar_events(days: int = Query(14, ge=1, le=90)) -> list[dict]:
+    now = datetime.now(UTC)
+    return calendar.events_between(now - timedelta(days=1), now + timedelta(days=days))
+
+
+@app.get("/api/calendar/oauth/start")
+async def calendar_oauth_start():
+    from fastapi.responses import RedirectResponse
+    try:
+        return RedirectResponse(calendar.authorization_url())
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.get("/api/calendar/oauth/callback")
+async def calendar_oauth_callback(code: str, state: str):
+    from fastapi.responses import RedirectResponse
+    try:
+        await calendar.exchange_code(code, state)
+        await calendar.sync()
+    except (ValueError, httpx.HTTPError) as exc:
+        raise HTTPException(status_code=400, detail=f"Collegamento Google non riuscito: {exc}") from exc
+    return RedirectResponse("/?calendar=connected")
 
 
 @app.post("/api/checkins/{checkin_id}/deliver")

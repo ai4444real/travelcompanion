@@ -210,7 +210,7 @@ def test_raw_snapshot_exposes_app_tables_without_configuration(tmp_path):
     repo, _, _ = setup(tmp_path)
     repo.create_item({"title": "Fatture"}, "test", None)
     snapshot = repo.raw_snapshot()
-    assert set(snapshot) == {"items", "relations", "progress_events", "activity_records", "messages", "checkins", "audit_log", "ai_usage"}
+    assert set(snapshot) == {"items", "relations", "progress_events", "activity_records", "messages", "checkins", "audit_log", "ai_usage", "calendar_events"}
     assert snapshot["items"][0]["title"] == "Fatture"
     assert "OPENAI_API_KEY" not in str(snapshot)
 

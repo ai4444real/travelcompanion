@@ -17,6 +17,9 @@ class Settings:
     ai_input_price_per_million: float
     ai_cached_input_price_per_million: float
     ai_output_price_per_million: float
+    google_client_id: str | None
+    google_client_secret: str | None
+    google_redirect_uri: str
 
 
 def get_settings() -> Settings:
@@ -31,4 +34,7 @@ def get_settings() -> Settings:
         ai_input_price_per_million=max(0, float(os.getenv("AI_INPUT_PRICE_PER_MILLION", "0.25"))),
         ai_cached_input_price_per_million=max(0, float(os.getenv("AI_CACHED_INPUT_PRICE_PER_MILLION", "0.025"))),
         ai_output_price_per_million=max(0, float(os.getenv("AI_OUTPUT_PRICE_PER_MILLION", "2.00"))),
+        google_client_id=os.getenv("GOOGLE_CLIENT_ID") or None,
+        google_client_secret=os.getenv("GOOGLE_CLIENT_SECRET") or None,
+        google_redirect_uri=os.getenv("GOOGLE_REDIRECT_URI", "https://compagno.simonegenini.com/api/calendar/oauth/callback"),
     )

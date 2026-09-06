@@ -15,6 +15,7 @@ MVP conversazionale che mantiene nel tempo impegni, intenzioni, routine e possib
 - console di ispezione e correzione manuale;
 - interfaccia responsive installabile come PWA;
 - API documentata automaticamente su `/docs`.
+- cache incrementale Google Calendar in sola lettura, aggiornata quando l'utente torna nell'app o scrive.
 
 La specifica di prodotto completa è in [Compagno di viaggio AI — Specifica MVP.md](./Compagno%20di%20viaggio%20AI%20%E2%80%94%20Specifica%20MVP.md).
 
