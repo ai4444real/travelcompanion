@@ -90,7 +90,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     try:
         calendar_status = await calendar.sync()
         now = datetime.now(UTC)
-        calendar_events = calendar.events_between(now, now + timedelta(days=14))
+        calendar_events = calendar.events_between(now, now + timedelta(days=14), include_transparent=True)
         result = await interpreter.interpret(message, repository.list_items(), repository.recent_messages(), repository.list_checkins(), {"status": calendar_status, "events": calendar_events})
         if result.provider_usage:
             repository.record_ai_usage(result.provider_usage)
@@ -174,7 +174,7 @@ async def calendar_status() -> dict:
 @app.get("/api/calendar/events")
 async def calendar_events(days: int = Query(14, ge=1, le=90)) -> list[dict]:
     now = datetime.now(UTC)
-    return calendar.events_between(now - timedelta(days=1), now + timedelta(days=days))
+    return calendar.events_between(now - timedelta(days=1), now + timedelta(days=days), include_transparent=True)
 
 
 @app.get("/api/calendar/oauth/start")

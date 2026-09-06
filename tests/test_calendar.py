@@ -39,6 +39,16 @@ def test_transparent_and_cancelled_events_do_not_block_time(tmp_path):
     service._store_event({**base, "id": "gone", "summary": "Annullato", "status": "cancelled"})
     events = service.events_between(datetime.now(UTC) - timedelta(days=30), datetime.now(UTC) + timedelta(days=30))
     assert events == []
+    informational = service.events_between(datetime.now(UTC) - timedelta(days=30), datetime.now(UTC) + timedelta(days=30), include_transparent=True)
+    assert len(informational) == 1
+    assert informational[0]["blocks_time"] is False
+
+
+def test_personal_free_time_and_gym_are_protected(tmp_path):
+    service = calendar(tmp_path)
+    assert service._classify("Simo - libero") == ("protected_personal", None)
+    assert service._classify("palestra") == ("protected_personal", None)
+    assert service._classify("PALESTRA") == ("protected_personal", None)
 
 
 def test_prune_removes_calendar_events_beyond_operational_window(tmp_path):

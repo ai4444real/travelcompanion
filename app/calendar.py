@@ -62,6 +62,7 @@ class GoogleCalendar:
                 self._set("last_sync_at", now_iso())
                 self._delete("last_error")
                 self._prune()
+                self._reclassify_cached_events()
                 result = self.status()
                 result["changed"] = changed
                 return result
@@ -81,14 +82,19 @@ class GoogleCalendar:
             "ok": self.connected() and not self._get("last_error"),
         }
 
-    def events_between(self, start: datetime, end: datetime) -> list[dict[str, Any]]:
+    def events_between(self, start: datetime, end: datetime, include_transparent: bool = False) -> list[dict[str, Any]]:
+        transparency_filter = "" if include_transparent else "AND COALESCE(transparency,'opaque')!='transparent'"
         with self.db.connect() as conn:
-            return [dict(row) for row in conn.execute(
-                """SELECT * FROM calendar_events
-                   WHERE event_status!='cancelled' AND COALESCE(transparency,'opaque')!='transparent'
+            rows = [dict(row) for row in conn.execute(
+                f"""SELECT * FROM calendar_events
+                   WHERE event_status!='cancelled' {transparency_filter}
                      AND ends_at>? AND starts_at<? ORDER BY starts_at""",
                 (start.isoformat(), end.isoformat()),
             ).fetchall()]
+        for row in rows:
+            row["blocks_time"] = row.get("transparency") != "transparent"
+            row["protected_time"] = row.get("category") == "protected_personal"
+        return rows
 
     async def _access_token(self) -> str:
         token = self._get("access_token")
@@ -164,11 +170,12 @@ class GoogleCalendar:
         if not starts_at or not ends_at:
             return
         summary = event.get("summary") or "(senza titolo)"
-        coaching = summary.casefold().startswith("coaching - ")
+        category, category_code = self._classify(summary)
+        coaching = category == "coaching"
         category_code = summary.split("-", 1)[1].strip() if coaching and "-" in summary else None
         values = (event_id, "primary", summary, starts_at, ends_at, int("date" in start_data),
                   event.get("transparency"), event.get("status", "confirmed"), event.get("eventType"),
-                  "coaching" if coaching else None, category_code, event.get("updated"), event.get("etag"), now_iso())
+                  category, category_code, event.get("updated"), event.get("etag"), now_iso())
         with self.db.connect() as conn:
             conn.execute("""INSERT INTO calendar_events(event_id,calendar_id,summary,starts_at,ends_at,all_day,transparency,event_status,event_type,category,category_code,google_updated_at,etag,cached_at)
                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(event_id) DO UPDATE SET
@@ -183,6 +190,22 @@ class GoogleCalendar:
         with self.db.connect() as conn:
             conn.execute("DELETE FROM calendar_events WHERE ends_at<?", (cutoff,))
             conn.execute("DELETE FROM calendar_events WHERE starts_at>?", (ceiling,))
+
+    @staticmethod
+    def _classify(summary: str) -> tuple[str | None, str | None]:
+        normalized = summary.strip().casefold()
+        if normalized.startswith("coaching - "):
+            return "coaching", summary.split("-", 1)[1].strip()
+        if normalized in {"simo - libero", "palestra"}:
+            return "protected_personal", None
+        return None, None
+
+    def _reclassify_cached_events(self) -> None:
+        with self.db.connect() as conn:
+            rows = conn.execute("SELECT event_id,summary FROM calendar_events").fetchall()
+            for row in rows:
+                category, code = self._classify(row["summary"] or "")
+                conn.execute("UPDATE calendar_events SET category=?,category_code=? WHERE event_id=?", (category, code, row["event_id"]))
 
     @staticmethod
     def _canonical_event_time(value: str | None) -> str | None:
