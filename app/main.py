@@ -62,6 +62,16 @@ async def history_view() -> FileResponse:
     return FileResponse(static_dir / "history.html")
 
 
+@app.get("/about", include_in_schema=False)
+async def about_view() -> FileResponse:
+    return FileResponse(static_dir / "about.html")
+
+
+@app.get("/privacy", include_in_schema=False)
+async def privacy_view() -> FileResponse:
+    return FileResponse(static_dir / "privacy.html")
+
+
 @app.get("/manifest.webmanifest", include_in_schema=False)
 async def manifest() -> FileResponse:
     return FileResponse(static_dir / "manifest.webmanifest", media_type="application/manifest+json")

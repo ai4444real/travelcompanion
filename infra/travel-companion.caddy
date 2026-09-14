@@ -1,0 +1,15 @@
+compagno.simonegenini.com {
+    encode zstd gzip
+
+    @public path /about /privacy
+    handle @public {
+        reverse_proxy 127.0.0.1:8100
+    }
+
+    handle {
+        basicauth {
+            simone __PASSWORD_HASH__
+        }
+        reverse_proxy 127.0.0.1:8100
+    }
+}
