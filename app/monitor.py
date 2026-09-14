@@ -20,6 +20,7 @@ class Monitor:
 
     def run(self, now: datetime | None = None) -> list[dict[str, Any]]:
         now = now or datetime.now(UTC)
+        self.expire_stale_periodic_checkins(now)
         created: list[dict[str, Any]] = []
         pending_item_ids = {row["item_id"] for row in self.repository.pending_checkins()}
         for item in self.repository.list_items(["active", "waiting", "unplanned", "suspended"]):
@@ -192,6 +193,7 @@ class Monitor:
 
     def pending_checkins(self, now: datetime | None = None) -> list[dict[str, Any]]:
         now = now or datetime.now(UTC)
+        self.expire_stale_periodic_checkins(now)
         rendered: list[dict[str, Any]] = []
         for checkin in self.repository.pending_checkins():
             row = dict(checkin)
@@ -206,6 +208,27 @@ class Monitor:
                         row["message"] = f"Mese di {self._month_it(target_due.astimezone(self.timezone).month)} · {row['message']}"
             rendered.append(row)
         return rendered
+
+    def expire_stale_periodic_checkins(self, now: datetime | None = None) -> int:
+        now = now or datetime.now(UTC)
+        local_today = now.astimezone(self.timezone).date()
+        expired = 0
+        for checkin in self.repository.pending_checkins():
+            if not checkin.get("item_id") or not checkin.get("target_due_at"):
+                continue
+            item = self.repository.get_item(checkin["item_id"])
+            frequency = (item.recurrence or {}).get("frequency") if item else None
+            if frequency not in {"weekly", "monthly", "yearly", "annual"}:
+                continue
+            target_date = self._aware(datetime.fromisoformat(str(checkin["target_due_at"]).replace("Z", "+00:00"))).astimezone(self.timezone).date()
+            stale = (
+                frequency == "weekly" and target_date.isocalendar()[:2] < local_today.isocalendar()[:2]
+                or frequency == "monthly" and (target_date.year, target_date.month) < (local_today.year, local_today.month)
+                or frequency in {"yearly", "annual"} and target_date.year < local_today.year
+            )
+            if stale and self.repository.resolve_checkin(checkin["id"], "expired"):
+                expired += 1
+        return expired
 
     def backfill_pending_targets(self) -> None:
         for checkin in self.repository.pending_checkins():

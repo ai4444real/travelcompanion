@@ -226,6 +226,15 @@ class Repository:
         with self.db.connect() as conn:
             self._resolve_pending_checkins(conn, item_id)
 
+    def resolve_checkin(self, checkin_id: str, status: str = "resolved") -> bool:
+        timestamp = now_iso()
+        with self.db.connect() as conn:
+            cursor = conn.execute(
+                "UPDATE checkins SET status=?, resolved_at=? WHERE id=? AND status='pending'",
+                (status, timestamp, checkin_id),
+            )
+        return cursor.rowcount > 0
+
     def set_checkin_target_due(self, checkin_id: str, target_due_at: str) -> None:
         with self.db.connect() as conn:
             conn.execute("UPDATE checkins SET target_due_at=? WHERE id=? AND target_due_at IS NULL", (target_due_at, checkin_id))

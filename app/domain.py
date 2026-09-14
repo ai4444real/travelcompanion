@@ -27,6 +27,14 @@ class ActionExecutor:
             if not action.data.get("title"):
                 return None
             return self.repository.create_item(self._normalize_item_data(action.data), "conversation", source_message_id)
+        if action.type == ActionType.DISMISS_CHECKIN:
+            if not action.item_id:
+                return None
+            if self.repository.resolve_checkin(action.item_id):
+                return None
+            if self.repository.get_item(action.item_id):
+                self.repository.resolve_pending_checkins(action.item_id)
+            return None
         if not action.item_id or not self.repository.get_item(action.item_id):
             return None
         if action.type == ActionType.UPDATE_ITEM:
@@ -66,9 +74,6 @@ class ActionExecutor:
             return self.repository.update_item(action.item_id, changes, "conversation", source_message_id)
         if action.type == ActionType.ABANDON_ITEM:
             return self.repository.update_item(action.item_id, {"status": ItemStatus.ABANDONED.value}, "conversation", source_message_id)
-        if action.type == ActionType.DISMISS_CHECKIN:
-            self.repository.resolve_pending_checkins(action.item_id)
-            return self.repository.get_item(action.item_id)
         if action.type == ActionType.UPDATE_ESTIMATE:
             return self.repository.update_item(action.item_id, {"estimate_minutes": action.data.get("estimate_minutes")}, "conversation", source_message_id)
         if action.type == ActionType.RECORD_PROGRESS:

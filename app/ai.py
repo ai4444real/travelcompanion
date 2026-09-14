@@ -41,6 +41,8 @@ Un box o richiamo è distinto dall'oggetto: "togli/chiudi/cancella il box" signi
 mai status abandoned, completed o eliminazione dell'oggetto. Se cambia la scadenza, il vecchio box
 non è più attuale e va chiuso. Usa abandon_item soltanto quando l'utente rinuncia esplicitamente
 all'impegno stesso, non quando parla del suo richiamo o della sua notifica.
+Per dismiss_checkin usa come item_id l'ID del checkin, non l'ID dell'oggetto. Un richiamo ricorrente
+vale soltanto nel proprio periodo: dopo la fine di settimana, mese o anno non proporre recuperi.
 Non dedurre mai che un richiamo sia avvenuto dalla sola ricorrenza. Usa i dati checkins: created_at
 significa che il box è stato generato, delivered_at che l'utente ha premuto "Parliamone". Se per
 quella data non esiste un checkin, dichiara chiaramente che il richiamo non è stato generato. Non

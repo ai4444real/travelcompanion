@@ -417,6 +417,15 @@ def test_dismiss_checkin_does_not_change_item_status(tmp_path):
     assert repo.pending_checkins() == []
 
 
+def test_dismiss_checkin_accepts_checkin_id_from_ai(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Palestra", "kind": "routine"}, "test", None)
+    checkin = repo.create_checkin(item.id, "Ne parliamo?", "test", 1)
+    executor.execute([Action(type=ActionType.DISMISS_CHECKIN, item_id=checkin["id"], confidence=1)], repo.add_message("user", "Togli il box"))
+    assert repo.pending_checkins() == []
+    assert repo.get_item(item.id).status == "active"
+
+
 def test_fixed_weekly_recurrence_creates_checkin_on_each_scheduled_day(tmp_path):
     repo, _, _ = setup(tmp_path)
     item = repo.create_item({"title": "Controllo richiami", "kind": "routine", "recurrence": {
@@ -484,3 +493,26 @@ def test_weekly_checkin_keeps_explicit_period_when_rendered(tmp_path):
     assert len(rendered) == 1
     assert "Settimana 24–30 agosto" in rendered[0]["message"]
     assert "oggi è giovedì" in rendered[0]["message"]
+
+
+def test_weekly_checkin_expires_when_new_week_starts(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Palestra", "kind": "routine", "recurrence": {
+        "frequency": "weekly", "times_per_week": 2,
+    }}, "test", None)
+    monitor = Monitor(repo, "Europe/Zurich")
+    monitor.run(datetime(2026, 9, 12, 8, 0, tzinfo=UTC))
+    assert len(repo.pending_checkins()) == 1
+    assert monitor.pending_checkins(datetime(2026, 9, 14, 8, 0, tzinfo=UTC)) == []
+    assert repo.list_checkins()[0]["status"] == "expired"
+
+
+def test_monthly_checkin_remains_until_month_end_then_expires(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Fatturare", "kind": "commitment", "importance": "alta", "recurrence": {
+        "frequency": "monthly", "day_of_month": 15,
+    }}, "test", None)
+    monitor = Monitor(repo, "Europe/Zurich")
+    monitor.run(datetime(2026, 9, 14, 8, 0, tzinfo=UTC))
+    assert len(monitor.pending_checkins(datetime(2026, 9, 30, 8, 0, tzinfo=UTC))) == 1
+    assert monitor.pending_checkins(datetime(2026, 10, 1, 8, 0, tzinfo=UTC)) == []
