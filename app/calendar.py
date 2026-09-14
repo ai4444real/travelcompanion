@@ -123,6 +123,11 @@ class GoogleCalendar:
                 "client_id": self.client_id, "client_secret": self.client_secret,
                 "refresh_token": self._get("refresh_token"), "grant_type": "refresh_token",
             })
+            if response.status_code == 400 and response.json().get("error") == "invalid_grant":
+                self._delete("refresh_token")
+                self._delete("access_token")
+                self._delete("access_token_expires_at")
+                raise RuntimeError("Autorizzazione Google scaduta: ricollega il calendario")
             response.raise_for_status()
         tokens = response.json()
         self._set_access_token(tokens)
