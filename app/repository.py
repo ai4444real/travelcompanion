@@ -158,17 +158,18 @@ class Repository:
             "count": data.get("count", 1 if record_type == "occurrence" else None),
             "quantity": data.get("quantity"), "unit": data.get("unit"),
             "source_type": source_type, "confidence": float(data.get("confidence", 1.0)),
+            "is_completion": int(bool(data.get("is_completion", record_type == "occurrence"))),
             "note": data.get("note"), "source_message_id": source_message_id,
             "recorded_at": now_iso(), "voided_at": None,
         }
         with self.db.connect() as conn:
             conn.execute(
-                """INSERT INTO activity_records(id,item_id,record_type,period_start,period_end,count,quantity,unit,source_type,confidence,note,source_message_id,recorded_at,voided_at)
-                VALUES(:id,:item_id,:record_type,:period_start,:period_end,:count,:quantity,:unit,:source_type,:confidence,:note,:source_message_id,:recorded_at,:voided_at)""",
+                """INSERT INTO activity_records(id,item_id,record_type,period_start,period_end,count,quantity,unit,source_type,is_completion,confidence,note,source_message_id,recorded_at,voided_at)
+                VALUES(:id,:item_id,:record_type,:period_start,:period_end,:count,:quantity,:unit,:source_type,:is_completion,:confidence,:note,:source_message_id,:recorded_at,:voided_at)""",
                 values,
             )
             self._audit(conn, "activity_record", record_id, "create", "conversation", source_message_id, None, values)
-            if record_type == "occurrence":
+            if record_type == "occurrence" and values["is_completion"]:
                 self._resolve_pending_checkins(conn, item_id)
         return values
 
@@ -181,6 +182,18 @@ class Repository:
         sql += " ORDER BY period_start, recorded_at"
         with self.db.connect() as conn:
             return [dict(row) for row in conn.execute(sql, params).fetchall()]
+
+    def void_activity(self, record_id: str, origin: str = "correction") -> bool:
+        timestamp = now_iso()
+        with self.db.connect() as conn:
+            before = conn.execute("SELECT * FROM activity_records WHERE id=? AND voided_at IS NULL", (record_id,)).fetchone()
+            if not before:
+                return False
+            conn.execute("UPDATE activity_records SET voided_at=? WHERE id=?", (timestamp, record_id))
+            after = dict(before)
+            after["voided_at"] = timestamp
+            self._audit(conn, "activity_record", record_id, "void", origin, None, dict(before), after)
+        return True
 
     def add_message(self, role: str, content: str, metadata: dict[str, Any] | None = None) -> str:
         message_id = new_id("msg")

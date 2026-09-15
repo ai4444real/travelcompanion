@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
+
 from app.models import Action, ActionType, Item, ItemKind, ItemStatus
 from app.repository import Repository
 
@@ -7,8 +10,9 @@ from app.repository import Repository
 class ActionExecutor:
     """Validates and applies model proposals; the model never writes directly."""
 
-    def __init__(self, repository: Repository):
+    def __init__(self, repository: Repository, timezone: str = "Europe/Zurich"):
         self.repository = repository
+        self.timezone = ZoneInfo(timezone)
 
     def execute(self, actions: list[Action], source_message_id: str) -> list[Item]:
         changed: dict[str, Item] = {}
@@ -44,8 +48,9 @@ class ActionExecutor:
                 changes.pop("status")
             if current and current.recurrence and changes.get("status") == ItemStatus.COMPLETED.value:
                 changes.pop("status")
-                self.repository.record_activity(action.item_id, {
+                self._record_recurring_once(current, {
                     "record_type": "occurrence", "source_type": "explicit",
+                    "is_completion": True,
                     "note": "Occorrenza ricorrente completata.",
                 }, source_message_id)
                 if not changes:
@@ -59,8 +64,9 @@ class ActionExecutor:
         if action.type == ActionType.COMPLETE_ITEM:
             current = self.repository.get_item(action.item_id)
             if current and current.recurrence:
-                self.repository.record_activity(action.item_id, {
+                self._record_recurring_once(current, {
                     "record_type": "occurrence", "source_type": "explicit",
+                    "is_completion": True,
                     "note": "Occorrenza ricorrente completata.",
                 }, source_message_id)
                 return self.repository.get_item(action.item_id)
@@ -81,7 +87,11 @@ class ActionExecutor:
         if action.type == ActionType.RECORD_USER_ASSESSMENT:
             return self.repository.update_item(action.item_id, {"user_assessment": action.data.get("assessment")}, "conversation", source_message_id)
         if action.type == ActionType.RECORD_ACTIVITY:
-            self.repository.record_activity(action.item_id, action.data, source_message_id)
+            current = self.repository.get_item(action.item_id)
+            if current and current.recurrence and action.data.get("record_type", "occurrence") == "occurrence":
+                self._record_recurring_once(current, action.data, source_message_id)
+            else:
+                self.repository.record_activity(action.item_id, action.data, source_message_id)
             return self.repository.get_item(action.item_id)
         if action.type == ActionType.REORDER_ITEM:
             target_id = action.data.get("target_item_id")
@@ -95,6 +105,30 @@ class ActionExecutor:
                 self.repository.add_relation(action.item_id, target_id, action.data.get("relation_type", "related"), "conversation", source_message_id)
             return self.repository.get_item(action.item_id)
         return None
+
+    def _record_recurring_once(self, item: Item, data: dict, source_message_id: str) -> None:
+        recurrence = item.recurrence or {}
+        frequency = recurrence.get("frequency")
+        value = data.get("period_start") or datetime.now(UTC).isoformat()
+        occurrence = self._local_datetime(value)
+        for existing in self.repository.list_activity_records(item.id):
+            if existing.get("record_type") != "occurrence" or not existing.get("is_completion", 1):
+                continue
+            previous = self._local_datetime(existing.get("period_start"))
+            duplicate = (
+                frequency == "monthly" and (previous.year, previous.month) == (occurrence.year, occurrence.month)
+                or frequency == "weekly" and recurrence.get("days_of_week") and previous.date() == occurrence.date()
+            )
+            if duplicate:
+                self.repository.resolve_pending_checkins(item.id)
+                return
+        self.repository.record_activity(item.id, data, source_message_id)
+
+    def _local_datetime(self, value: object) -> datetime:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=self.timezone)
+        return parsed.astimezone(self.timezone)
 
     @staticmethod
     def _normalize_item_data(data: dict) -> dict:

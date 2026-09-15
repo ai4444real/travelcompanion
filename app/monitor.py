@@ -89,7 +89,7 @@ class Monitor:
     def _activity_count_between(self, item_id: str, start_date: Any, end_date: Any) -> int:
         total = 0
         for record in self.repository.list_activity_records(item_id):
-            if record.get("record_type") != "occurrence":
+            if record.get("record_type") != "occurrence" or not record.get("is_completion", 1):
                 continue
             activity_date = self._activity_local_date(record)
             if activity_date and start_date <= activity_date <= end_date:
@@ -107,7 +107,7 @@ class Monitor:
 
     def _has_activity_on_local_date(self, item_id: str, target_date: Any) -> bool:
         for record in self.repository.list_activity_records(item_id):
-            if self._activity_local_date(record) == target_date:
+            if record.get("is_completion", 1) and self._activity_local_date(record) == target_date:
                 return True
         return False
 

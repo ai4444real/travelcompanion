@@ -516,3 +516,42 @@ def test_monthly_checkin_remains_until_month_end_then_expires(tmp_path):
     monitor.run(datetime(2026, 9, 14, 8, 0, tzinfo=UTC))
     assert len(monitor.pending_checkins(datetime(2026, 9, 30, 8, 0, tzinfo=UTC))) == 1
     assert monitor.pending_checkins(datetime(2026, 10, 1, 8, 0, tzinfo=UTC)) == []
+
+
+def test_monthly_recurring_completion_is_idempotent_within_month(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Fatturare", "kind": "routine", "recurrence": {
+        "frequency": "monthly", "day_of_month": 15,
+    }}, "test", None)
+    action = Action(type=ActionType.RECORD_ACTIVITY, item_id=item.id, data={
+        "record_type": "occurrence", "period_start": "2026-09-15T18:00:00+02:00",
+    }, confidence=1)
+    executor.execute([action], repo.add_message("user", "Fatto"))
+    executor.execute([action], repo.add_message("user", "Te l'ho già detto"))
+    assert len(repo.list_activity_records(item.id)) == 1
+
+
+def test_partial_monthly_activity_does_not_block_later_completion(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Fatturare", "kind": "routine", "recurrence": {
+        "frequency": "monthly", "day_of_month": 15,
+    }}, "test", None)
+    repo.record_activity(item.id, {"record_type": "occurrence", "period_start": "2026-09-14", "is_completion": False, "note": "Preparata, manca un dato"}, "test")
+    executor.execute([Action(type=ActionType.RECORD_ACTIVITY, item_id=item.id, data={
+        "record_type": "occurrence", "period_start": "2026-09-15", "is_completion": True,
+    }, confidence=1)], repo.add_message("user", "Ora è fatta"))
+    records = repo.list_activity_records(item.id)
+    assert len(records) == 2
+    assert [row["is_completion"] for row in records] == [0, 1]
+
+
+def test_fixed_weekly_completion_deduplicates_day_not_week(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Richiami", "kind": "routine", "recurrence": {
+        "frequency": "weekly", "days_of_week": ["tuesday", "thursday"],
+    }}, "test", None)
+    for when in ["2026-09-15T08:00:00+02:00", "2026-09-15T18:00:00+02:00", "2026-09-17T08:00:00+02:00"]:
+        executor.execute([Action(type=ActionType.RECORD_ACTIVITY, item_id=item.id, data={
+            "record_type": "occurrence", "period_start": when,
+        }, confidence=1)], repo.add_message("user", "Fatto"))
+    assert len(repo.list_activity_records(item.id)) == 2

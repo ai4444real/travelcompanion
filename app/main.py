@@ -30,7 +30,7 @@ interpreter = build_interpreter(
     settings.ai_cached_input_price_per_million,
     settings.ai_output_price_per_million,
 )
-executor = ActionExecutor(repository)
+executor = ActionExecutor(repository, settings.timezone)
 monitor = Monitor(repository, settings.timezone)
 calendar = GoogleCalendar(db, settings.google_client_id, settings.google_client_secret, settings.google_redirect_uri)
 
@@ -101,7 +101,12 @@ async def chat(request: ChatRequest) -> ChatResponse:
         calendar_status = await calendar.sync()
         now = datetime.now(UTC)
         calendar_events = calendar.planning_context(now, now + timedelta(days=14), settings.timezone)
-        result = await interpreter.interpret(message, repository.list_items(), repository.recent_messages(), repository.list_checkins(), {"status": calendar_status, "timezone": settings.timezone, "events": calendar_events})
+        result = await interpreter.interpret(
+            message, repository.list_items(), repository.recent_messages(),
+            checkins=repository.list_checkins(),
+            calendar_context={"status": calendar_status, "timezone": settings.timezone, "events": calendar_events},
+            activities=repository.list_activity_records(),
+        )
         if result.provider_usage:
             repository.record_ai_usage(result.provider_usage)
         changed = executor.execute(result.actions, user_message_id)

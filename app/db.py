@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS activity_records (
     quantity REAL,
     unit TEXT,
     source_type TEXT NOT NULL DEFAULT 'explicit' CHECK(source_type IN ('explicit', 'evidence', 'inference')),
+    is_completion INTEGER NOT NULL DEFAULT 1,
     confidence REAL NOT NULL DEFAULT 1,
     note TEXT,
     source_message_id TEXT,
@@ -184,6 +185,9 @@ class Database:
             checkin_columns = {row["name"] for row in connection.execute("PRAGMA table_info(checkins)").fetchall()}
             if "target_due_at" not in checkin_columns:
                 connection.execute("ALTER TABLE checkins ADD COLUMN target_due_at TEXT")
+            activity_columns = {row["name"] for row in connection.execute("PRAGMA table_info(activity_records)").fetchall()}
+            if "is_completion" not in activity_columns:
+                connection.execute("ALTER TABLE activity_records ADD COLUMN is_completion INTEGER NOT NULL DEFAULT 1")
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
