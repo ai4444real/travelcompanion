@@ -16,6 +16,7 @@ from app.db import Database
 from app.domain import ActionExecutor
 from app.models import ChatRequest, ChatResponse, FocusOrderRequest, Item, ItemPatch
 from app.monitor import Monitor
+from app.operational_state import recurrence_facts
 from app.repository import Repository
 
 
@@ -101,11 +102,14 @@ async def chat(request: ChatRequest) -> ChatResponse:
         calendar_status = await calendar.sync()
         now = datetime.now(UTC)
         calendar_events = calendar.planning_context(now, now + timedelta(days=14), settings.timezone)
+        current_items = repository.list_items()
+        current_activities = repository.list_activity_records()
         result = await interpreter.interpret(
-            message, repository.list_items(), repository.recent_messages(),
+            message, current_items, repository.recent_messages(),
             checkins=repository.list_checkins(),
             calendar_context={"status": calendar_status, "timezone": settings.timezone, "events": calendar_events},
-            activities=repository.list_activity_records(),
+            activities=current_activities,
+            recurrence_facts=recurrence_facts(current_items, current_activities, settings.timezone, now),
         )
         if result.provider_usage:
             repository.record_ai_usage(result.provider_usage)
@@ -113,6 +117,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
         monitor.run()
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Provider AI non disponibile: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Azione non eseguita: {exc}") from exc
     repository.add_message("assistant", result.reply, {"actions": [action.model_dump(mode="json") for action in result.actions]})
     return ChatResponse(reply=result.reply, actions=result.actions, changed_items=changed)
 

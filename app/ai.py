@@ -48,6 +48,7 @@ vale soltanto nel proprio periodo: dopo la fine di settimana, mese o anno non pr
 Per sapere se una ricorrenza è stata eseguita usa activities, non lo status dell'oggetto: active
 significa che la ricorrenza continuerà, non che l'occorrenza corrente sia incompleta. Prima di
 registrare o negare un completamento, controlla le attività dell'oggetto nel giorno/mese pertinente.
+recurrence_facts è il riepilogo deterministico e autorevole del periodo corrente: non contraddirlo.
 Non dedurre mai che un richiamo sia avvenuto dalla sola ricorrenza. Usa i dati checkins: created_at
 significa che il box è stato generato, delivered_at che l'utente ha premuto "Parliamone". Se per
 quella data non esiste un checkin, dichiara chiaramente che il richiamo non è stato generato. Non
@@ -134,7 +135,7 @@ INTERPRETATION_SCHEMA: dict[str, Any] = {
 
 class Interpreter(ABC):
     @abstractmethod
-    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]], checkins: list[dict[str, Any]] | None = None, calendar_context: dict[str, Any] | None = None, activities: list[dict[str, Any]] | None = None) -> Interpretation: ...
+    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]], checkins: list[dict[str, Any]] | None = None, calendar_context: dict[str, Any] | None = None, activities: list[dict[str, Any]] | None = None, recurrence_facts: list[dict[str, Any]] | None = None) -> Interpretation: ...
 
 
 class OpenAIInterpreter(Interpreter):
@@ -145,9 +146,9 @@ class OpenAIInterpreter(Interpreter):
         self.cached_input_price = cached_input_price
         self.output_price = output_price
 
-    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]], checkins: list[dict[str, Any]] | None = None, calendar_context: dict[str, Any] | None = None, activities: list[dict[str, Any]] | None = None) -> Interpretation:
+    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]], checkins: list[dict[str, Any]] | None = None, calendar_context: dict[str, Any] | None = None, activities: list[dict[str, Any]] | None = None, recurrence_facts: list[dict[str, Any]] | None = None) -> Interpretation:
         activity_state = [{key: row.get(key) for key in ("id", "item_id", "period_start", "count", "quantity", "unit", "is_completion", "note") if row.get(key) is not None} for row in (activities or [])[-100:]]
-        state = {"items": [item.model_dump(mode="json", exclude_none=True) for item in items], "checkins": (checkins or [])[:100], "activities": activity_state, "calendar": calendar_context or {"status": {"connected": False}, "events": []}}
+        state = {"items": [item.model_dump(mode="json", exclude_none=True) for item in items], "checkins": (checkins or [])[:100], "activities": activity_state, "recurrence_facts": recurrence_facts or [], "calendar": calendar_context or {"status": {"connected": False}, "events": []}}
         context = [{"role": msg["role"], "content": msg["content"]} for msg in recent_messages[-12:]]
         current_time = datetime.now(UTC).isoformat()
         payload = {
@@ -199,7 +200,7 @@ class OpenAIInterpreter(Interpreter):
 class LocalInterpreter(Interpreter):
     """Useful offline baseline covering the acceptance scenarios; not a general NLU system."""
 
-    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]], checkins: list[dict[str, Any]] | None = None, calendar_context: dict[str, Any] | None = None, activities: list[dict[str, Any]] | None = None) -> Interpretation:
+    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]], checkins: list[dict[str, Any]] | None = None, calendar_context: dict[str, Any] | None = None, activities: list[dict[str, Any]] | None = None, recurrence_facts: list[dict[str, Any]] | None = None) -> Interpretation:
         text = message.strip()
         lower = self._normalize_numbers(text.lower())
         item = self._resolve_item(lower, items)

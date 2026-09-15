@@ -29,7 +29,7 @@ class ActionExecutor:
             return None
         if action.type == ActionType.CREATE_ITEM:
             if not action.data.get("title"):
-                return None
+                raise ValueError("Creazione ignorata: titolo mancante")
             return self.repository.create_item(self._normalize_item_data(action.data), "conversation", source_message_id)
         if action.type == ActionType.DISMISS_CHECKIN:
             if not action.item_id:
@@ -38,9 +38,10 @@ class ActionExecutor:
                 return None
             if self.repository.get_item(action.item_id):
                 self.repository.resolve_pending_checkins(action.item_id)
-            return None
+                return None
+            raise ValueError(f"Richiamo o oggetto non trovato: {action.item_id}")
         if not action.item_id or not self.repository.get_item(action.item_id):
-            return None
+            raise ValueError(f"Oggetto non trovato: {action.item_id or 'ID mancante'}")
         if action.type == ActionType.UPDATE_ITEM:
             changes = dict(action.data)
             current = self.repository.get_item(action.item_id)
