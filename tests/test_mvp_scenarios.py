@@ -518,6 +518,13 @@ def test_monthly_checkin_remains_until_month_end_then_expires(tmp_path):
     assert monitor.pending_checkins(datetime(2026, 10, 1, 8, 0, tzinfo=UTC)) == []
 
 
+def test_manual_date_only_deadline_ends_on_same_zurich_day(tmp_path):
+    repo, _, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Lezione"}, "test", None)
+    updated = repo.update_item(item.id, {"due_at": "2026-09-21T23:59:59"}, "manual", None)
+    assert updated.due_at.isoformat() == "2026-09-21T21:59:59+00:00"
+
+
 def test_monthly_recurring_completion_is_idempotent_within_month(tmp_path):
     repo, executor, _ = setup(tmp_path)
     item = repo.create_item({"title": "Fatturare", "kind": "routine", "recurrence": {
