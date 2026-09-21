@@ -15,6 +15,7 @@ class ActionExecutor:
         self.timezone = ZoneInfo(timezone)
 
     def execute(self, actions: list[Action], source_message_id: str) -> list[Item]:
+        self.validate_actions(actions)
         changed: dict[str, Item] = {}
         for action in actions:
             if action.confidence < 0.65 and action.type not in {ActionType.REQUEST_CLARIFICATION, ActionType.NO_ACTION}:
@@ -23,6 +24,26 @@ class ActionExecutor:
             if item:
                 changed[item.id] = item
         return list(changed.values())
+
+    def validate_actions(self, actions: list[Action]) -> None:
+        """Reject an invalid batch before the first write can occur."""
+        for action in actions:
+            if action.confidence < 0.65 or action.type in {ActionType.NO_ACTION, ActionType.REQUEST_CLARIFICATION, ActionType.SEND_CHECKIN}:
+                continue
+            if action.type == ActionType.CREATE_ITEM:
+                if not action.data.get("title"):
+                    raise ValueError("Creazione senza titolo")
+                continue
+            if action.type == ActionType.DISMISS_CHECKIN:
+                checkin = self.repository.get_checkin(action.item_id) if action.item_id else None
+                if checkin and checkin["status"] != "pending":
+                    if any(row["item_id"] == checkin["item_id"] for row in self.repository.pending_checkins()):
+                        raise ValueError("Richiamo superato: esiste un box più recente per lo stesso oggetto")
+                if not action.item_id or not (checkin or self.repository.get_item(action.item_id)):
+                    raise ValueError("Richiamo inesistente")
+                continue
+            if not action.item_id or not self.repository.get_item(action.item_id):
+                raise ValueError("Oggetto inesistente o ID mancante")
 
     def _execute_one(self, action: Action, source_message_id: str) -> Item | None:
         if action.type in {ActionType.NO_ACTION, ActionType.REQUEST_CLARIFICATION, ActionType.SEND_CHECKIN}:
@@ -36,6 +57,8 @@ class ActionExecutor:
                 return None
             if self.repository.resolve_checkin(action.item_id):
                 return None
+            if self.repository.get_checkin(action.item_id):
+                return None  # Chiusura ripetuta: già risolto o scaduto.
             if self.repository.get_item(action.item_id):
                 self.repository.resolve_pending_checkins(action.item_id)
                 return None

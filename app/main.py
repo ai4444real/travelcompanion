@@ -14,7 +14,7 @@ from app.calendar import GoogleCalendar
 from app.config import get_settings
 from app.db import Database
 from app.domain import ActionExecutor
-from app.models import ChatRequest, ChatResponse, FocusOrderRequest, Item, ItemPatch
+from app.models import ActionType, ChatRequest, ChatResponse, FocusOrderRequest, Item, ItemPatch
 from app.monitor import Monitor
 from app.operational_state import recurrence_facts
 from app.repository import Repository
@@ -113,6 +113,34 @@ async def chat(request: ChatRequest) -> ChatResponse:
         )
         if result.provider_usage:
             repository.record_ai_usage(result.provider_usage)
+        try:
+            executor.validate_actions(result.actions)
+        except ValueError as first_error:
+            correction = (
+                f"{message}\n\nLa proposta precedente non è stata eseguita: {first_error}. "
+                "Riformula le azioni usando solo ID di oggetti/check-in presenti nello STATO. "
+                "Se stai creando un oggetto, metti tutti i suoi dati nella singola azione create_item; "
+                "non aggiungere una seconda azione con item_id nullo. Non dichiarare eseguite azioni non valide."
+            )
+            result = await interpreter.interpret(
+                correction, current_items, repository.recent_messages(),
+                checkins=repository.list_checkins(),
+                calendar_context={"status": calendar_status, "timezone": settings.timezone, "events": calendar_events},
+                activities=current_activities,
+                recurrence_facts=recurrence_facts(current_items, current_activities, settings.timezone, now),
+            )
+            if result.provider_usage:
+                repository.record_ai_usage(result.provider_usage)
+            try:
+                executor.validate_actions(result.actions)
+            except ValueError:
+                reply = "Non ho modificato nulla: la proposta conteneva un riferimento non valido. Puoi ripetere la richiesta?"
+                repository.add_message("assistant", reply, {"actions": [], "validation_error": True})
+                return ChatResponse(reply=reply, actions=[], changed_items=[])
+            if all(action.type in {ActionType.NO_ACTION, ActionType.REQUEST_CLARIFICATION, ActionType.SEND_CHECKIN} for action in result.actions):
+                reply = "Non ho modificato nulla: non sono riuscito a trasformare la richiesta in un'azione sicura. Puoi ripeterla?"
+                repository.add_message("assistant", reply, {"actions": [], "validation_error": True})
+                return ChatResponse(reply=reply, actions=[], changed_items=[])
         changed = executor.execute(result.actions, user_message_id)
         monitor.run()
     except httpx.HTTPError as exc:

@@ -227,6 +227,11 @@ class Repository:
                 "SELECT * FROM checkins ORDER BY created_at DESC LIMIT ?", (limit,)
             ).fetchall()]
 
+    def get_checkin(self, checkin_id: str) -> dict[str, Any] | None:
+        with self.db.connect() as conn:
+            row = conn.execute("SELECT * FROM checkins WHERE id=?", (checkin_id,)).fetchone()
+        return dict(row) if row else None
+
     def has_checkin_for_target(self, item_id: str, target_due_at: str) -> bool:
         with self.db.connect() as conn:
             row = conn.execute(

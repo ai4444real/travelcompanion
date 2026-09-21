@@ -4,6 +4,8 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from app.ai import LocalInterpreter
 from app.db import Database
 from app.domain import ActionExecutor
@@ -424,6 +426,39 @@ def test_dismiss_checkin_accepts_checkin_id_from_ai(tmp_path):
     executor.execute([Action(type=ActionType.DISMISS_CHECKIN, item_id=checkin["id"], confidence=1)], repo.add_message("user", "Togli il box"))
     assert repo.pending_checkins() == []
     assert repo.get_item(item.id).status == "active"
+
+
+def test_dismiss_checkin_is_idempotent_when_already_closed(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Palestra"}, "test", None)
+    checkin = repo.create_checkin(item.id, "Ne parliamo?", "test", 1)
+    action = Action(type=ActionType.DISMISS_CHECKIN, item_id=checkin["id"], confidence=1)
+    executor.execute([action], repo.add_message("user", "Chiudi"))
+    executor.execute([action], repo.add_message("user", "Chiudi ancora"))
+    assert repo.get_checkin(checkin["id"])["status"] == "resolved"
+
+
+def test_old_checkin_id_does_not_hide_a_new_pending_box(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Palestra"}, "test", None)
+    old = repo.create_checkin(item.id, "Vecchio", "test", 1)
+    repo.resolve_checkin(old["id"])
+    new = repo.create_checkin(item.id, "Nuovo", "test", 1)
+    action = Action(type=ActionType.DISMISS_CHECKIN, item_id=old["id"], confidence=1)
+    with pytest.raises(ValueError, match="più recente"):
+        executor.execute([action], repo.add_message("user", "Chiudi il box"))
+    assert repo.get_checkin(new["id"])["status"] == "pending"
+
+
+def test_invalid_second_action_cannot_partially_create_item(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    actions = [
+        Action(type=ActionType.CREATE_ITEM, data={"title": "Contattare Simona"}, confidence=1),
+        Action(type=ActionType.UPDATE_ITEM, item_id=None, data={"due_at": "2026-09-25T17:00:00+02:00"}, confidence=1),
+    ]
+    with pytest.raises(ValueError, match="ID mancante"):
+        executor.execute(actions, repo.add_message("user", "Aggiungi Contattare Simona"))
+    assert repo.list_items() == []
 
 
 def test_fixed_weekly_recurrence_creates_checkin_on_each_scheduled_day(tmp_path):
