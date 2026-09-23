@@ -116,6 +116,27 @@ class ActionExecutor:
                 self._record_recurring_once(current, action.data, source_message_id)
             else:
                 self.repository.record_activity(action.item_id, action.data, source_message_id)
+                # A completed occurrence is the completion of a one-off item.  Keep
+                # activity history and item state consistent even if the model chose
+                # record_activity instead of complete_item.
+                is_completion = action.data.get(
+                    "is_completion",
+                    action.data.get("record_type", "occurrence") == "occurrence",
+                )
+                if (
+                    current
+                    and not current.recurrence
+                    and current.kind != ItemKind.TEMA
+                    and action.data.get("record_type", "occurrence") == "occurrence"
+                    and is_completion
+                ):
+                    self.repository.update_item(
+                        action.item_id,
+                        {"status": ItemStatus.COMPLETED.value},
+                        "conversation",
+                        source_message_id,
+                    )
+                    self.repository.resolve_pending_checkins(action.item_id)
             return self.repository.get_item(action.item_id)
         if action.type == ActionType.REORDER_ITEM:
             target_id = action.data.get("target_item_id")

@@ -9,8 +9,7 @@ import pytest
 from app.ai import LocalInterpreter
 from app.db import Database
 from app.domain import ActionExecutor
-from app.models import ActionType
-from app.models import Action
+from app.models import Action, ActionType, ItemStatus
 from app.monitor import Monitor
 from app.repository import Repository
 
@@ -585,6 +584,36 @@ def test_partial_monthly_activity_does_not_block_later_completion(tmp_path):
     records = repo.list_activity_records(item.id)
     assert len(records) == 2
     assert [row["is_completion"] for row in records] == [0, 1]
+
+
+def test_completed_activity_closes_one_off_item_and_its_checkin(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({
+        "title": "Registrare presenze",
+        "kind": "commitment",
+        "due_at": "2026-09-16T15:00:00+00:00",
+    }, "test", None)
+    repo.create_checkin(item.id, "Scaduto", "test", 1)
+    assert len(repo.pending_checkins()) == 1
+
+    executor.execute([Action(type=ActionType.RECORD_ACTIVITY, item_id=item.id, data={
+        "record_type": "occurrence", "is_completion": True,
+        "note": "Utente: registrato come completato.",
+    }, confidence=1)], repo.add_message("user", "Fatto"))
+
+    assert repo.get_item(item.id).status == ItemStatus.COMPLETED
+    assert repo.pending_checkins() == []
+    Monitor(repo).run(datetime(2026, 9, 23, 8, 0, tzinfo=UTC))
+    assert repo.pending_checkins() == []
+
+
+def test_partial_activity_keeps_one_off_item_active(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Preparare lezione", "kind": "commitment"}, "test", None)
+    executor.execute([Action(type=ActionType.RECORD_ACTIVITY, item_id=item.id, data={
+        "record_type": "occurrence", "is_completion": False, "note": "Iniziata",
+    }, confidence=1)], repo.add_message("user", "Ho iniziato"))
+    assert repo.get_item(item.id).status == ItemStatus.ACTIVE
 
 
 def test_fixed_weekly_completion_deduplicates_day_not_week(tmp_path):
