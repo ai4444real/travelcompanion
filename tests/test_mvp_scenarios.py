@@ -431,6 +431,28 @@ def test_dismiss_checkin_accepts_checkin_id_from_ai(tmp_path):
     assert repo.get_item(item.id).status == "active"
 
 
+def test_send_checkin_creates_a_real_box_for_the_item(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Chiamare Michi", "due_at": "2026-09-24T18:00:00Z"}, "test", None)
+    executor.execute([Action(type=ActionType.SEND_CHECKIN, item_id=item.id, data={
+        "message": "Chiamare Michi entro le 20:00.",
+        "reason": "richiesto dall'utente",
+        "target_due_at": "2026-09-24T20:00:00+02:00",
+    }, confidence=1)], repo.add_message("user", "Crea il box"))
+
+    checkin = repo.pending_checkins()[0]
+    assert checkin["item_id"] == item.id
+    assert checkin["message"] == "Chiamare Michi entro le 20:00."
+    assert checkin["target_due_at"] == "2026-09-24T20:00:00+02:00"
+
+
+def test_send_checkin_rejects_a_missing_target_before_writes(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    with pytest.raises(ValueError, match="Oggetto del richiamo inesistente"):
+        executor.execute([Action(type=ActionType.SEND_CHECKIN, data={"target_item_id": "missing"}, confidence=1)], "message")
+    assert repo.pending_checkins() == []
+
+
 def test_dismiss_checkin_is_idempotent_when_already_closed(tmp_path):
     repo, executor, _ = setup(tmp_path)
     item = repo.create_item({"title": "Palestra"}, "test", None)

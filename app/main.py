@@ -137,7 +137,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
                 reply = "Non ho modificato nulla: la proposta conteneva un riferimento non valido. Puoi ripetere la richiesta?"
                 repository.add_message("assistant", reply, {"actions": [], "validation_error": True})
                 return ChatResponse(reply=reply, actions=[], changed_items=[])
-            if all(action.type in {ActionType.NO_ACTION, ActionType.REQUEST_CLARIFICATION, ActionType.SEND_CHECKIN} for action in result.actions):
+            if all(action.type in {ActionType.NO_ACTION, ActionType.REQUEST_CLARIFICATION} for action in result.actions):
                 reply = "Non ho modificato nulla: non sono riuscito a trasformare la richiesta in un'azione sicura. Puoi ripeterla?"
                 repository.add_message("assistant", reply, {"actions": [], "validation_error": True})
                 return ChatResponse(reply=reply, actions=[], changed_items=[])

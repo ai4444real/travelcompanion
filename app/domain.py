@@ -28,7 +28,7 @@ class ActionExecutor:
     def validate_actions(self, actions: list[Action]) -> None:
         """Reject an invalid batch before the first write can occur."""
         for action in actions:
-            if action.confidence < 0.65 or action.type in {ActionType.NO_ACTION, ActionType.REQUEST_CLARIFICATION, ActionType.SEND_CHECKIN}:
+            if action.confidence < 0.65 or action.type in {ActionType.NO_ACTION, ActionType.REQUEST_CLARIFICATION}:
                 continue
             if action.type == ActionType.CREATE_ITEM:
                 if not action.data.get("title"):
@@ -42,11 +42,16 @@ class ActionExecutor:
                 if not action.item_id or not (checkin or self.repository.get_item(action.item_id)):
                     raise ValueError("Richiamo inesistente")
                 continue
+            if action.type == ActionType.SEND_CHECKIN:
+                target_id = action.item_id or action.data.get("target_item_id")
+                if not target_id or not self.repository.get_item(target_id):
+                    raise ValueError("Oggetto del richiamo inesistente o ID mancante")
+                continue
             if not action.item_id or not self.repository.get_item(action.item_id):
                 raise ValueError("Oggetto inesistente o ID mancante")
 
     def _execute_one(self, action: Action, source_message_id: str) -> Item | None:
-        if action.type in {ActionType.NO_ACTION, ActionType.REQUEST_CLARIFICATION, ActionType.SEND_CHECKIN}:
+        if action.type in {ActionType.NO_ACTION, ActionType.REQUEST_CLARIFICATION}:
             return None
         if action.type == ActionType.CREATE_ITEM:
             if not action.data.get("title"):
@@ -63,6 +68,23 @@ class ActionExecutor:
                 self.repository.resolve_pending_checkins(action.item_id)
                 return None
             raise ValueError(f"Richiamo o oggetto non trovato: {action.item_id}")
+        if action.type == ActionType.SEND_CHECKIN:
+            target_id = action.item_id or action.data.get("target_item_id")
+            item = self.repository.get_item(target_id) if target_id else None
+            if not item:
+                raise ValueError("Oggetto del richiamo inesistente o ID mancante")
+            target_due_at = action.data.get("target_due_at") or (item.due_at.isoformat() if item.due_at else None)
+            pending = [row for row in self.repository.pending_checkins() if row.get("item_id") == item.id]
+            if not pending:
+                message = action.data.get("message") or f"“{item.title}” richiede attenzione. È ancora realistico o c'è qualcosa da rinegoziare?"
+                self.repository.create_checkin(
+                    item.id,
+                    message,
+                    action.data.get("reason", "richiamo richiesto esplicitamente"),
+                    action.confidence,
+                    target_due_at,
+                )
+            return item
         if not action.item_id or not self.repository.get_item(action.item_id):
             raise ValueError(f"Oggetto non trovato: {action.item_id or 'ID mancante'}")
         if action.type == ActionType.UPDATE_ITEM:

@@ -45,6 +45,9 @@ Un box o richiamo è distinto dall'oggetto: "togli/chiudi/cancella il box" signi
 mai status abandoned, completed o eliminazione dell'oggetto. Se cambia la scadenza, il vecchio box
 non è più attuale e va chiuso. Usa abandon_item soltanto quando l'utente rinuncia esplicitamente
 all'impegno stesso, non quando parla del suo richiamo o della sua notifica.
+Se l'utente chiede esplicitamente di creare un box, usa send_checkin con l'ID dell'oggetto in item_id,
+message, reason e target_due_at. Non dire mai che un box è stato creato senza questa azione. Prima di
+modificare un oggetto esistente verifica che il titolo dell'ID scelto sia proprio quello nominato.
 Per dismiss_checkin usa come item_id l'ID del checkin, non l'ID dell'oggetto. Un richiamo ricorrente
 vale soltanto nel proprio periodo: dopo la fine di settimana, mese o anno non proporre recuperi.
 Per sapere se una ricorrenza è stata eseguita usa activities, non lo status dell'oggetto: active
@@ -121,7 +124,10 @@ INTERPRETATION_SCHEMA: dict[str, Any] = {
                             "count": {"type": "number"},
                             "quantity": {"type": "number"},
                             "source_type": {"type": "string", "enum": ["explicit", "evidence", "inference"]},
-                            "is_completion": {"type": "boolean"}
+                            "is_completion": {"type": "boolean"},
+                            "message": {"type": "string"},
+                            "reason": {"type": "string"},
+                            "target_due_at": {"type": "string"}
                         }
                     },
                     "confidence": {"type": "number"},
