@@ -354,10 +354,14 @@ def test_pending_checkin_recalculates_relative_deadline_when_read(tmp_path):
     item = repo.create_item({"title": "Chiamare consulente", "due_at": "2026-08-25T17:00:00Z"}, "test", None)
     repo.create_checkin(item.id, "Scadenza tra due giorni", "test", 0.8, "2026-08-25T17:00:00+00:00")
     monitor = Monitor(repo, "Europe/Zurich")
+    upcoming = monitor.pending_checkins(datetime(2026, 8, 24, 9, 0, tzinfo=UTC))[0]
     today = monitor.pending_checkins(datetime(2026, 8, 25, 9, 0, tzinfo=UTC))[0]
     overdue = monitor.pending_checkins(datetime(2026, 8, 27, 9, 0, tzinfo=UTC))[0]
+    assert upcoming["timing"] == "upcoming"
     assert "scadenza oggi" in today["message"]
+    assert today["timing"] == "due"
     assert "scaduto da 2 giorni" in overdue["message"]
+    assert overdue["timing"] == "due"
 
 
 def test_legacy_monthly_checkin_uses_occurrence_near_creation(tmp_path):

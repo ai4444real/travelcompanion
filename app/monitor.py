@@ -201,6 +201,12 @@ class Monitor:
             if item:
                 target_due = self._checkin_due(row, item)
                 recurrence_frequency = (item.recurrence or {}).get("frequency")
+                if target_due:
+                    target_date = target_due.astimezone(self.timezone).date()
+                    today = now.astimezone(self.timezone).date()
+                    row["timing"] = "due" if target_date <= today else "upcoming"
+                else:
+                    row["timing"] = "upcoming"
                 if target_due and recurrence_frequency != "weekly":
                     progress = f" Sei a {item.progress_value:g} su {item.progress_total:g}." if item.progress_value is not None and item.progress_total else ""
                     row["message"] = self._due_message(item.title, self._due_phrase(target_due, now), progress, "")

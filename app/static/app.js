@@ -94,7 +94,7 @@ async function moveFocus(sourceId,targetId){const ids=focusIds();const source=id
 
 async function loadCheckins() {
   const checkins=await api('/api/checkins'); const stack=$('#checkins');
-  stack.innerHTML=checkins.map(checkin=>`<article class="checkin" data-id="${checkin.id}"><small>Forse vale la pena parlarne</small>${escapeHtml(checkin.message)}<br><button>Parliamone</button></article>`).join('');
+  stack.innerHTML=checkins.map(checkin=>`<article class="checkin checkin-${checkin.timing==='due'?'due':'upcoming'}" data-id="${checkin.id}"><small>Forse vale la pena parlarne</small>${escapeHtml(checkin.message)}<br><button>Parliamone</button></article>`).join('');
   stack.querySelectorAll('button').forEach(button=>button.addEventListener('click',async()=>{
     const card=button.closest('.checkin'); $('#messageInput').value=card.childNodes[2]?.textContent?.trim()||'Parliamone.';
     await api(`/api/checkins/${card.dataset.id}/deliver`,{method:'POST'}); card.remove(); $('#messageInput').focus();
