@@ -207,11 +207,58 @@ def test_weekly_frequency_without_fixed_days_is_preserved(tmp_path):
     assert updated.recurrence == {"frequency": "weekly", "times_per_week": 4}
 
 
+def test_reschedule_monthly_occurrence_preserves_series_and_moves_box(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Stipendi", "recurrence": {"frequency": "monthly", "day_of_month": 26}}, "test", None)
+    old = repo.create_checkin(item.id, "Scade il 26", "test", 1, "2026-09-26T21:59:59+00:00")
+    executor.execute([Action(type=ActionType.RESCHEDULE_OCCURRENCE, item_id=item.id, data={
+        "original_due_at": "2026-09-26T23:59:59+02:00", "target_due_at": "2026-09-28T23:59:59+02:00",
+    }, confidence=1)], repo.add_message("user", "Solo questa volta sposta a lunedì"))
+    assert repo.get_checkin(old["id"])["status"] == "resolved"
+    assert repo.pending_checkins()[0]["target_due_at"] == "2026-09-28T23:59:59+02:00"
+    assert repo.get_item(item.id).recurrence == {"frequency": "monthly", "day_of_month": 26}
+    monitor = Monitor(repo, "Europe/Zurich")
+    september = monitor._effective_due(item, datetime(2026, 9, 28, 8, tzinfo=UTC))
+    october = monitor._effective_due(item, datetime(2026, 10, 27, 8, tzinfo=UTC))
+    assert september.astimezone(ZoneInfo("Europe/Zurich")).date().isoformat() == "2026-09-28"
+    assert october.astimezone(ZoneInfo("Europe/Zurich")).date().isoformat() == "2026-11-26"
+
+
+def test_reschedule_fixed_weekly_occurrence_suppresses_original_day(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Richiami", "recurrence": {"frequency": "weekly", "days_of_week": ["thursday"]}}, "test", None)
+    executor.execute([Action(type=ActionType.RESCHEDULE_OCCURRENCE, item_id=item.id, data={
+        "original_due_at": "2026-09-24T23:59:59+02:00", "target_due_at": "2026-09-25T23:59:59+02:00",
+    }, confidence=1)], "message")
+    assert Monitor(repo, "Europe/Zurich")._weekly_candidate(item, datetime(2026, 9, 24, 8, tzinfo=UTC)) is None
+    assert repo.list_recurrence_overrides(item.id)[0]["occurrence_key"] == "day:2026-09-24"
+
+
+def test_reschedule_yearly_occurrence_preserves_next_year(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Rinnovo", "recurrence": {"frequency": "yearly", "month_of_year": 9, "day_of_month": 24}}, "test", None)
+    executor.execute([Action(type=ActionType.RESCHEDULE_OCCURRENCE, item_id=item.id, data={
+        "original_due_at": "2026-09-24T23:59:59+02:00", "target_due_at": "2026-10-01T23:59:59+02:00",
+    }, confidence=1)], "message")
+    monitor = Monitor(repo, "Europe/Zurich")
+    this_year = monitor._effective_due(item, datetime(2026, 9, 28, 8, tzinfo=UTC))
+    next_year = monitor._effective_due(item, datetime(2027, 9, 25, 8, tzinfo=UTC))
+    assert this_year.astimezone(ZoneInfo("Europe/Zurich")).date().isoformat() == "2026-10-01"
+    assert next_year.astimezone(ZoneInfo("Europe/Zurich")).date().isoformat() == "2028-09-24"
+
+
+def test_update_item_rejects_occurrence_only_fields(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Stipendi", "recurrence": {"frequency": "monthly", "day_of_month": 26}}, "test", None)
+    with pytest.raises(ValueError, match="Campi non validi"):
+        executor.execute([Action(type=ActionType.UPDATE_ITEM, item_id=item.id, data={"target_due_at": "2026-09-28T20:00:00+02:00"})], "message")
+
+
 def test_raw_snapshot_exposes_app_tables_without_configuration(tmp_path):
     repo, _, _ = setup(tmp_path)
     repo.create_item({"title": "Fatture"}, "test", None)
     snapshot = repo.raw_snapshot()
-    assert set(snapshot) == {"items", "relations", "progress_events", "activity_records", "messages", "checkins", "audit_log", "ai_usage", "calendar_events"}
+    assert set(snapshot) == {"items", "relations", "progress_events", "activity_records", "messages", "checkins", "recurrence_overrides", "audit_log", "ai_usage", "calendar_events"}
     assert snapshot["items"][0]["title"] == "Fatture"
     assert "OPENAI_API_KEY" not in str(snapshot)
 

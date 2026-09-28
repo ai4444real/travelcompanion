@@ -103,6 +103,19 @@ CREATE TABLE IF NOT EXISTS checkins (
     resolved_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS recurrence_overrides (
+    id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    occurrence_key TEXT NOT NULL,
+    original_due_at TEXT NOT NULL,
+    effective_due_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    source_message_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(item_id, occurrence_key)
+);
+
 CREATE TABLE IF NOT EXISTS audit_log (
     id TEXT PRIMARY KEY,
     entity_type TEXT NOT NULL,
@@ -157,6 +170,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_checkins_status ON checkins(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_ai_usage_created ON ai_usage(created_at);
 CREATE INDEX IF NOT EXISTS idx_activity_item_period ON activity_records(item_id, period_start, period_end);
+CREATE INDEX IF NOT EXISTS idx_recurrence_overrides_due ON recurrence_overrides(item_id, effective_due_at, status);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_period ON calendar_events(starts_at, ends_at);
 """
 

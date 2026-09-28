@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
@@ -33,6 +34,19 @@ class ActionExecutor:
             if action.type == ActionType.CREATE_ITEM:
                 if not action.data.get("title"):
                     raise ValueError("Creazione senza titolo")
+                continue
+            if action.type == ActionType.UPDATE_ITEM:
+                allowed = set(Item.model_fields) - {"id", "created_at", "updated_at"}
+                unknown = set(action.data) - allowed
+                if unknown:
+                    raise ValueError(f"Campi non validi per l'oggetto: {', '.join(sorted(unknown))}")
+            if action.type == ActionType.RESCHEDULE_OCCURRENCE:
+                item = self.repository.get_item(action.item_id) if action.item_id else None
+                if not item or not item.recurrence:
+                    raise ValueError("Lo spostamento di un'occorrenza richiede un oggetto ricorrente esistente")
+                if not action.data.get("original_due_at") or not action.data.get("target_due_at"):
+                    raise ValueError("Servono la data originale e la nuova data dell'occorrenza")
+                self._validate_occurrence_date(item, self._local_datetime(action.data["original_due_at"]))
                 continue
             if action.type == ActionType.DISMISS_CHECKIN:
                 checkin = self.repository.get_checkin(action.item_id) if action.item_id else None
@@ -84,6 +98,25 @@ class ActionExecutor:
                     action.confidence,
                     target_due_at,
                 )
+            return item
+        if action.type == ActionType.RESCHEDULE_OCCURRENCE:
+            item = self.repository.get_item(action.item_id)
+            if not item or not item.recurrence:
+                raise ValueError("Lo spostamento richiede un oggetto ricorrente")
+            original = self._local_datetime(action.data["original_due_at"])
+            effective = self._local_datetime(action.data["target_due_at"])
+            occurrence_key = self._occurrence_key(item, original)
+            self.repository.upsert_recurrence_override(
+                item.id, occurrence_key, original.isoformat(), effective.isoformat(), source_message_id,
+            )
+            self.repository.resolve_pending_checkins(item.id)
+            self.repository.create_checkin(
+                item.id,
+                f"“{item.title}” è stata spostata al {effective.astimezone(self.timezone).strftime('%d.%m.%Y')}. È ancora realistico?",
+                "occorrenza ricorrente spostata",
+                action.confidence,
+                effective.isoformat(),
+            )
             return item
         if not action.item_id or not self.repository.get_item(action.item_id):
             raise ValueError(f"Oggetto non trovato: {action.item_id or 'ID mancante'}")
@@ -190,12 +223,53 @@ class ActionExecutor:
                 self.repository.resolve_pending_checkins(item.id)
                 return
         self.repository.record_activity(item.id, data, source_message_id)
+        for override in self.repository.list_recurrence_overrides(item.id):
+            effective = self._local_datetime(override["effective_due_at"])
+            if effective.date() == occurrence.date():
+                self.repository.set_recurrence_override_status(override["id"], "completed")
 
     def _local_datetime(self, value: object) -> datetime:
         parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=self.timezone)
         return parsed.astimezone(self.timezone)
+
+    def _occurrence_key(self, item: Item, original: datetime) -> str:
+        frequency = (item.recurrence or {}).get("frequency")
+        local = original.astimezone(self.timezone)
+        if frequency == "weekly" and (item.recurrence or {}).get("times_per_week"):
+            iso = local.isocalendar()
+            return f"week:{iso.year}-W{iso.week:02d}"
+        if frequency == "weekly":
+            return f"day:{local.date().isoformat()}"
+        if frequency == "monthly":
+            return f"month:{local.year}-{local.month:02d}"
+        if frequency in {"yearly", "annual"}:
+            return f"year:{local.year}"
+        raise ValueError("Frequenza non supportata per lo spostamento della singola occorrenza")
+
+    def _validate_occurrence_date(self, item: Item, original: datetime) -> None:
+        recurrence = item.recurrence or {}
+        frequency = recurrence.get("frequency")
+        local = original.astimezone(self.timezone)
+        if frequency == "weekly" and recurrence.get("days_of_week"):
+            if local.strftime("%A").lower() not in {str(day).lower() for day in recurrence["days_of_week"]}:
+                raise ValueError("La data originale non coincide con un giorno previsto dalla ricorrenza")
+            return
+        if frequency == "weekly" and recurrence.get("times_per_week"):
+            return
+        if frequency == "monthly" and recurrence.get("day_of_month"):
+            expected = min(int(recurrence["day_of_month"]), calendar.monthrange(local.year, local.month)[1])
+            if local.day != expected:
+                raise ValueError("La data originale non coincide con l'occorrenza mensile")
+            return
+        if frequency in {"yearly", "annual"} and recurrence.get("day_of_month") and (recurrence.get("month_of_year") or recurrence.get("month")):
+            expected_month = int(recurrence.get("month_of_year") or recurrence.get("month"))
+            expected_day = min(int(recurrence["day_of_month"]), calendar.monthrange(local.year, expected_month)[1])
+            if (local.month, local.day) != (expected_month, expected_day):
+                raise ValueError("La data originale non coincide con l'occorrenza annuale")
+            return
+        raise ValueError("La ricorrenza non identifica un'occorrenza spostabile")
 
     @staticmethod
     def _normalize_item_data(data: dict) -> dict:

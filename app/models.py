@@ -37,6 +37,7 @@ class ActionType(StrEnum):
     RECORD_PROGRESS = "record_progress"
     RECORD_USER_ASSESSMENT = "record_user_assessment"
     RECORD_ACTIVITY = "record_activity"
+    RESCHEDULE_OCCURRENCE = "reschedule_occurrence"
     REQUEST_CLARIFICATION = "request_clarification"
     SEND_CHECKIN = "send_checkin"
     DISMISS_CHECKIN = "dismiss_checkin"

@@ -240,6 +240,55 @@ class Repository:
             ).fetchone()
         return row is not None
 
+    def upsert_recurrence_override(self, item_id: str, occurrence_key: str, original_due_at: str, effective_due_at: str, source_message_id: str | None) -> dict[str, Any]:
+        if not self.get_item(item_id):
+            raise KeyError(item_id)
+        timestamp = now_iso()
+        original = self._canonical_due(original_due_at)
+        effective = self._canonical_due(effective_due_at)
+        with self.db.connect() as conn:
+            before_row = conn.execute(
+                "SELECT * FROM recurrence_overrides WHERE item_id=? AND occurrence_key=?",
+                (item_id, occurrence_key),
+            ).fetchone()
+            override_id = before_row["id"] if before_row else new_id("override")
+            conn.execute(
+                """INSERT INTO recurrence_overrides(id,item_id,occurrence_key,original_due_at,effective_due_at,status,source_message_id,created_at,updated_at)
+                VALUES(?,?,?,?,?,'active',?,?,?)
+                ON CONFLICT(item_id,occurrence_key) DO UPDATE SET
+                original_due_at=excluded.original_due_at,effective_due_at=excluded.effective_due_at,
+                status='active',source_message_id=excluded.source_message_id,updated_at=excluded.updated_at""",
+                (override_id, item_id, occurrence_key, original, effective, source_message_id, timestamp, timestamp),
+            )
+            after = dict(conn.execute("SELECT * FROM recurrence_overrides WHERE id=?", (override_id,)).fetchone())
+            self._audit(conn, "recurrence_override", override_id, "update" if before_row else "create", "conversation", source_message_id, dict(before_row) if before_row else None, after)
+        return after
+
+    def get_recurrence_override(self, item_id: str, occurrence_key: str) -> dict[str, Any] | None:
+        with self.db.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM recurrence_overrides WHERE item_id=? AND occurrence_key=? AND status='active'",
+                (item_id, occurrence_key),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_recurrence_overrides(self, item_id: str | None = None, status: str | None = "active") -> list[dict[str, Any]]:
+        clauses, params = [], []
+        if item_id:
+            clauses.append("item_id=?"); params.append(item_id)
+        if status:
+            clauses.append("status=?"); params.append(status)
+        sql = "SELECT * FROM recurrence_overrides" + (" WHERE " + " AND ".join(clauses) if clauses else "") + " ORDER BY effective_due_at"
+        with self.db.connect() as conn:
+            return [dict(row) for row in conn.execute(sql, params).fetchall()]
+
+    def set_recurrence_override_status(self, override_id: str, status: str) -> None:
+        with self.db.connect() as conn:
+            conn.execute(
+                "UPDATE recurrence_overrides SET status=?,updated_at=? WHERE id=?",
+                (status, now_iso(), override_id),
+            )
+
     def resolve_pending_checkins(self, item_id: str) -> None:
         with self.db.connect() as conn:
             self._resolve_pending_checkins(conn, item_id)
@@ -337,6 +386,7 @@ class Repository:
             "activity_records": "period_start, recorded_at, id",
             "messages": "created_at, id",
             "checkins": "created_at, id",
+            "recurrence_overrides": "effective_due_at, id",
             "audit_log": "created_at, id",
             "ai_usage": "created_at, id",
             "calendar_events": "starts_at, event_id",

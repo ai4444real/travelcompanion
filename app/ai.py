@@ -41,6 +41,11 @@ ricorrenza termina soltanto su richiesta esplicita inequivocabile, per esempio "
 "non ricordarmelo più". Dopo un'azione chiara dai una conferma breve e conclusiva: non proporre
 automaticamente note, tempi, archivi o altre opzioni e non fare domande se non servono davvero a
 evitare un errore. Non mostrare ID tecnici, salvo richiesta esplicita dell'utente.
+Per spostare una sola occorrenza di un elemento ricorrente usa sempre reschedule_occurrence, con
+original_due_at e target_due_at completi di fuso. Non usare update_item e non cambiare la regola
+generale. Se invece l'utente dice "da ora in poi" modifica recurrence con update_item. Se non è
+chiaro quale occorrenza settimanale spostare, chiedi; per obiettivi N volte a settimana chiedi se lo
+spostamento oltre il confine della settimana debba contare nella vecchia o nella nuova settimana.
 Un box o richiamo è distinto dall'oggetto: "togli/chiudi/cancella il box" significa dismiss_checkin,
 mai status abandoned, completed o eliminazione dell'oggetto. Se cambia la scadenza, il vecchio box
 non è più attuale e va chiuso. Usa abandon_item soltanto quando l'utente rinuncia esplicitamente
@@ -127,7 +132,8 @@ INTERPRETATION_SCHEMA: dict[str, Any] = {
                             "is_completion": {"type": "boolean"},
                             "message": {"type": "string"},
                             "reason": {"type": "string"},
-                            "target_due_at": {"type": "string"}
+                            "target_due_at": {"type": "string"},
+                            "original_due_at": {"type": "string"}
                         }
                     },
                     "confidence": {"type": "number"},
@@ -143,7 +149,7 @@ INTERPRETATION_SCHEMA: dict[str, Any] = {
 
 class Interpreter(ABC):
     @abstractmethod
-    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]], checkins: list[dict[str, Any]] | None = None, calendar_context: dict[str, Any] | None = None, activities: list[dict[str, Any]] | None = None, recurrence_facts: list[dict[str, Any]] | None = None) -> Interpretation: ...
+    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]], checkins: list[dict[str, Any]] | None = None, calendar_context: dict[str, Any] | None = None, activities: list[dict[str, Any]] | None = None, recurrence_facts: list[dict[str, Any]] | None = None, recurrence_overrides: list[dict[str, Any]] | None = None) -> Interpretation: ...
 
 
 class OpenAIInterpreter(Interpreter):
@@ -154,9 +160,9 @@ class OpenAIInterpreter(Interpreter):
         self.cached_input_price = cached_input_price
         self.output_price = output_price
 
-    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]], checkins: list[dict[str, Any]] | None = None, calendar_context: dict[str, Any] | None = None, activities: list[dict[str, Any]] | None = None, recurrence_facts: list[dict[str, Any]] | None = None) -> Interpretation:
+    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]], checkins: list[dict[str, Any]] | None = None, calendar_context: dict[str, Any] | None = None, activities: list[dict[str, Any]] | None = None, recurrence_facts: list[dict[str, Any]] | None = None, recurrence_overrides: list[dict[str, Any]] | None = None) -> Interpretation:
         activity_state = [{key: row.get(key) for key in ("id", "item_id", "period_start", "count", "quantity", "unit", "is_completion", "note") if row.get(key) is not None} for row in (activities or [])[-100:]]
-        state = {"items": [item.model_dump(mode="json", exclude_none=True) for item in items], "checkins": (checkins or [])[:100], "activities": activity_state, "recurrence_facts": recurrence_facts or [], "calendar": calendar_context or {"status": {"connected": False}, "events": []}}
+        state = {"items": [item.model_dump(mode="json", exclude_none=True) for item in items], "checkins": (checkins or [])[:100], "activities": activity_state, "recurrence_facts": recurrence_facts or [], "recurrence_overrides": recurrence_overrides or [], "calendar": calendar_context or {"status": {"connected": False}, "events": []}}
         context = [{"role": msg["role"], "content": msg["content"]} for msg in recent_messages[-12:]]
         current_time = datetime.now(UTC).isoformat()
         payload = {
@@ -208,7 +214,7 @@ class OpenAIInterpreter(Interpreter):
 class LocalInterpreter(Interpreter):
     """Useful offline baseline covering the acceptance scenarios; not a general NLU system."""
 
-    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]], checkins: list[dict[str, Any]] | None = None, calendar_context: dict[str, Any] | None = None, activities: list[dict[str, Any]] | None = None, recurrence_facts: list[dict[str, Any]] | None = None) -> Interpretation:
+    async def interpret(self, message: str, items: list[Item], recent_messages: list[dict[str, Any]], checkins: list[dict[str, Any]] | None = None, calendar_context: dict[str, Any] | None = None, activities: list[dict[str, Any]] | None = None, recurrence_facts: list[dict[str, Any]] | None = None, recurrence_overrides: list[dict[str, Any]] | None = None) -> Interpretation:
         text = message.strip()
         lower = self._normalize_numbers(text.lower())
         item = self._resolve_item(lower, items)

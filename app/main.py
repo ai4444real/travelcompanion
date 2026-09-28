@@ -110,6 +110,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             calendar_context={"status": calendar_status, "timezone": settings.timezone, "events": calendar_events},
             activities=current_activities,
             recurrence_facts=recurrence_facts(current_items, current_activities, settings.timezone, now),
+            recurrence_overrides=repository.list_recurrence_overrides(),
         )
         if result.provider_usage:
             repository.record_ai_usage(result.provider_usage)
@@ -128,6 +129,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
                 calendar_context={"status": calendar_status, "timezone": settings.timezone, "events": calendar_events},
                 activities=current_activities,
                 recurrence_facts=recurrence_facts(current_items, current_activities, settings.timezone, now),
+                recurrence_overrides=repository.list_recurrence_overrides(),
             )
             if result.provider_usage:
                 repository.record_ai_usage(result.provider_usage)

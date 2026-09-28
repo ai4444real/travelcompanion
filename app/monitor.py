@@ -24,6 +24,12 @@ class Monitor:
         created: list[dict[str, Any]] = []
         pending_item_ids = {row["item_id"] for row in self.repository.pending_checkins()}
         for item in self.repository.list_items(["active", "waiting", "unplanned", "suspended"]):
+            if item.id not in pending_item_ids:
+                override_candidate = self._override_candidate(item, now)
+                if override_candidate:
+                    created.append(self.repository.create_checkin(item.id, override_candidate["message"], override_candidate["reason"], override_candidate["score"], override_candidate["target_due_at"]))
+                    self.repository.update_item(item.id, {"last_checked_at": now.isoformat()}, "monitor", None)
+                    continue
             recurrence = item.recurrence or {}
             weekly_days = recurrence.get("days_of_week") if recurrence.get("frequency") == "weekly" else None
             weekly_quota = recurrence.get("times_per_week") if recurrence.get("frequency") == "weekly" else None
@@ -57,6 +63,8 @@ class Monitor:
             return None
         target = datetime(local_now.year, local_now.month, local_now.day, 23, 59, 59, tzinfo=self.timezone).astimezone(UTC)
         target_iso = target.isoformat()
+        if self.repository.get_recurrence_override(item.id, f"day:{local_now.date().isoformat()}"):
+            return None
         if self.repository.has_checkin_for_target(item.id, target_iso) or self._has_activity_on_local_date(item.id, local_now.date()):
             return None
         days_it = {"monday": "lunedì", "tuesday": "martedì", "wednesday": "mercoledì", "thursday": "giovedì", "friday": "venerdì", "saturday": "sabato", "sunday": "domenica"}
@@ -85,6 +93,25 @@ class Monitor:
             return None
         message = f"Settimana {self._date_range_it(week_start, week_end)} · {completed} su {goal} per “{item.title}”. Restano {remaining}: vuoi recuperarne una oggi?"
         return {"score": 1.0, "reason": "obiettivo settimanale a rischio", "message": message, "target_due_at": target_iso}
+
+    def _override_candidate(self, item: Item, now: datetime) -> dict[str, Any] | None:
+        if item.status != "active":
+            return None
+        local_today = now.astimezone(self.timezone).date()
+        for override in self.repository.list_recurrence_overrides(item.id):
+            due = self._aware(datetime.fromisoformat(override["effective_due_at"].replace("Z", "+00:00")))
+            days = (due.astimezone(self.timezone).date() - local_today).days
+            if days > 2:
+                continue
+            if self.repository.has_checkin_for_target(item.id, due.isoformat()):
+                continue
+            return {
+                "score": 1.0,
+                "reason": "occorrenza ricorrente spostata",
+                "message": self._due_message(item.title, self._due_phrase(due, now), "", ""),
+                "target_due_at": due.isoformat(),
+            }
+        return None
 
     def _activity_count_between(self, item_id: str, start_date: Any, end_date: Any) -> int:
         total = 0
@@ -281,9 +308,26 @@ class Monitor:
         if item.due_at:
             return self._aware(item.due_at)
         recurrence = item.recurrence or {}
-        if recurrence.get("frequency") != "monthly" or not recurrence.get("day_of_month"):
-            return None
         local_now = now.astimezone(self.timezone)
+        frequency = recurrence.get("frequency")
+        if frequency in {"yearly", "annual"} and recurrence.get("day_of_month") and (recurrence.get("month_of_year") or recurrence.get("month")):
+            year = local_now.year
+            month = int(recurrence.get("month_of_year") or recurrence.get("month"))
+            day = min(int(recurrence["day_of_month"]), calendar.monthrange(year, month)[1])
+            due = datetime(year, month, day, 23, 59, 59, tzinfo=self.timezone)
+            override = self.repository.get_recurrence_override(item.id, f"year:{year}")
+            if override:
+                return self._aware(datetime.fromisoformat(override["effective_due_at"].replace("Z", "+00:00")))
+            if local_now > due:
+                year += 1
+                day = min(int(recurrence["day_of_month"]), calendar.monthrange(year, month)[1])
+                due = datetime(year, month, day, 23, 59, 59, tzinfo=self.timezone)
+                override = self.repository.get_recurrence_override(item.id, f"year:{year}")
+                if override:
+                    return self._aware(datetime.fromisoformat(override["effective_due_at"].replace("Z", "+00:00")))
+            return due.astimezone(UTC)
+        if frequency != "monthly" or not recurrence.get("day_of_month"):
+            return None
         year, month = local_now.year, local_now.month
         requested_day = int(recurrence["day_of_month"])
 
@@ -292,11 +336,17 @@ class Monitor:
             return datetime(target_year, target_month, day, 23, 59, 59, tzinfo=self.timezone)
 
         due = occurrence(year, month)
+        override = self.repository.get_recurrence_override(item.id, f"month:{year}-{month:02d}")
+        if override:
+            return self._aware(datetime.fromisoformat(override["effective_due_at"].replace("Z", "+00:00")))
         if local_now > due:
             month = month + 1
             if month == 13:
                 year, month = year + 1, 1
             due = occurrence(year, month)
+            override = self.repository.get_recurrence_override(item.id, f"month:{year}-{month:02d}")
+            if override:
+                return self._aware(datetime.fromisoformat(override["effective_due_at"].replace("Z", "+00:00")))
         return due.astimezone(UTC)
 
     def _eligible(self, item: Item, now: datetime) -> bool:
