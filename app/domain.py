@@ -115,7 +115,7 @@ class ActionExecutor:
                 f"“{item.title}” è stata spostata al {effective.astimezone(self.timezone).strftime('%d.%m.%Y')}. È ancora realistico?",
                 "occorrenza ricorrente spostata",
                 action.confidence,
-                effective.isoformat(),
+                effective.astimezone(UTC).isoformat(),
             )
             return item
         if not action.item_id or not self.repository.get_item(action.item_id):

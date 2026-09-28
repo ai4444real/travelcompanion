@@ -215,7 +215,7 @@ def test_reschedule_monthly_occurrence_preserves_series_and_moves_box(tmp_path):
         "original_due_at": "2026-09-26T23:59:59+02:00", "target_due_at": "2026-09-28T23:59:59+02:00",
     }, confidence=1)], repo.add_message("user", "Solo questa volta sposta a lunedì"))
     assert repo.get_checkin(old["id"])["status"] == "resolved"
-    assert repo.pending_checkins()[0]["target_due_at"] == "2026-09-28T23:59:59+02:00"
+    assert repo.pending_checkins()[0]["target_due_at"] == "2026-09-28T21:59:59+00:00"
     assert repo.get_item(item.id).recurrence == {"frequency": "monthly", "day_of_month": 26}
     monitor = Monitor(repo, "Europe/Zurich")
     september = monitor._effective_due(item, datetime(2026, 9, 28, 8, tzinfo=UTC))
