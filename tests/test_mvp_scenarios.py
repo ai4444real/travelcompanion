@@ -258,10 +258,11 @@ def test_postpone_one_off_moves_deadline_and_replaces_box(tmp_path):
     repo, executor, _ = setup(tmp_path)
     item = repo.create_item({"title": "Telefonare", "due_at": "2026-09-29T18:00:00+02:00"}, "test", None)
     old = repo.create_checkin(item.id, "Telefonare oggi", "test", 0.8, "2026-09-29T16:00:00+00:00")
-    new = executor.postpone_checkin(old["id"], 2)
+    result = executor.postpone_checkin(old["id"], 2)
     assert repo.get_checkin(old["id"])["status"] == "postponed"
-    assert new["target_due_at"] == "2026-10-01T16:00:00+00:00"
+    assert result["due_at"] == "2026-10-01T16:00:00+00:00"
     assert repo.get_item(item.id).due_at.isoformat() == "2026-10-01T16:00:00+00:00"
+    assert repo.pending_checkins() == []
 
 
 def test_repeated_postpone_updates_same_recurring_exception(tmp_path):
@@ -269,14 +270,17 @@ def test_repeated_postpone_updates_same_recurring_exception(tmp_path):
     item = repo.create_item({"title": "Backup", "recurrence": {"frequency": "monthly", "day_of_month": 28}}, "test", None)
     first = repo.create_checkin(item.id, "Backup oggi", "test", 0.8, "2026-09-28T21:59:59+00:00")
     second = executor.postpone_checkin(first["id"], 2)
-    third = executor.postpone_checkin(second["id"], 1)
+    assert repo.pending_checkins() == []
+    next_box = repo.create_checkin(item.id, "Backup spostato", "test", 0.8, second["due_at"])
+    third = executor.postpone_checkin(next_box["id"], 1)
     overrides = repo.list_recurrence_overrides(item.id)
     assert len(overrides) == 1
     assert overrides[0]["occurrence_key"] == "month:2026-09"
     assert overrides[0]["original_due_at"] == "2026-09-28T21:59:59+00:00"
     assert overrides[0]["effective_due_at"] == "2026-10-01T21:59:59+00:00"
-    assert third["target_due_at"] == "2026-10-01T21:59:59+00:00"
+    assert third["due_at"] == "2026-10-01T21:59:59+00:00"
     assert repo.get_item(item.id).recurrence == {"frequency": "monthly", "day_of_month": 28}
+    assert repo.pending_checkins() == []
 
 
 def test_raw_snapshot_exposes_app_tables_without_configuration(tmp_path):

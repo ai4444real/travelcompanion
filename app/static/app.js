@@ -103,7 +103,7 @@ async function loadCheckins() {
     const value=window.prompt('Di quanti giorni vuoi posticiparlo?','1');if(value===null)return;
     if(!/^\d+$/.test(value.trim())||Number(value)<1||Number(value)>365){showToast('Inserisci un numero di giorni tra 1 e 365');return;}
     button.disabled=true;
-    try{await api(`/api/checkins/${button.closest('.checkin').dataset.id}/postpone`,{method:'POST',body:JSON.stringify({days:Number(value)})});await loadCheckins();showToast('Box posticipato');}
+    try{await api(`/api/checkins/${button.closest('.checkin').dataset.id}/postpone`,{method:'POST',body:JSON.stringify({days:Number(value)})});await Promise.all([loadCheckins(),loadItems()]);showToast('Scadenza posticipata');}
     catch(error){showToast(error.message);button.disabled=false;}
   }));
 }

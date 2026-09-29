@@ -60,14 +60,23 @@ class ActionExecutor:
         else:
             self.repository.update_item(item.id, {"due_at": new_due.isoformat()}, "postpone", None)
 
+        expected = new_due.astimezone(UTC)
+        if item.recurrence:
+            saved = self.repository.get_recurrence_override(item.id, occurrence_key)
+            actual = self._local_datetime(saved["effective_due_at"]).astimezone(UTC) if saved else None
+        else:
+            saved_item = self.repository.get_item(item.id)
+            actual = saved_item.due_at.astimezone(UTC) if saved_item and saved_item.due_at else None
+        if actual != expected:
+            raise ValueError("Non sono riuscito a verificare la nuova scadenza; il box resta visibile")
+
         self.repository.resolve_checkin(checkin_id, "postponed")
-        return self.repository.create_checkin(
-            item.id,
-            f"“{item.title}” è stata posticipata di {days} {'giorno' if days == 1 else 'giorni'}.",
-            f"posticipato di {days} {'giorno' if days == 1 else 'giorni'} dall'utente",
-            float(checkin.get("score") or 1),
-            new_due.astimezone(UTC).isoformat(),
-        )
+        return {
+            "status": "postponed",
+            "item_id": item.id,
+            "due_at": expected.isoformat(),
+            "days": days,
+        }
 
     def validate_actions(self, actions: list[Action]) -> None:
         """Reject an invalid batch before the first write can occur."""
