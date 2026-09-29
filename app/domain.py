@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import calendar
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from app.models import Action, ActionType, Item, ItemKind, ItemStatus
@@ -25,6 +25,49 @@ class ActionExecutor:
             if item:
                 changed[item.id] = item
         return list(changed.values())
+
+    def postpone_checkin(self, checkin_id: str, days: int) -> dict:
+        checkin = self.repository.get_checkin(checkin_id)
+        if not checkin or checkin.get("status") != "pending":
+            raise ValueError("Il box non è più attivo")
+        item = self.repository.get_item(checkin.get("item_id")) if checkin.get("item_id") else None
+        if not item:
+            raise ValueError("L'oggetto del box non esiste più")
+        raw_due = checkin.get("target_due_at") or (item.due_at.isoformat() if item.due_at else None)
+        if not raw_due:
+            raise ValueError("Questo box non ha una data da posticipare")
+        current_due = self._local_datetime(raw_due)
+        new_due = current_due + timedelta(days=days)
+
+        if item.recurrence:
+            existing = next(
+                (
+                    row for row in self.repository.list_recurrence_overrides(item.id)
+                    if self._local_datetime(row["effective_due_at"]) == current_due
+                ),
+                None,
+            )
+            if existing:
+                occurrence_key = existing["occurrence_key"]
+                original_due = existing["original_due_at"]
+            else:
+                self._validate_occurrence_date(item, current_due)
+                occurrence_key = self._occurrence_key(item, current_due)
+                original_due = current_due.isoformat()
+            self.repository.upsert_recurrence_override(
+                item.id, occurrence_key, original_due, new_due.isoformat(), None,
+            )
+        else:
+            self.repository.update_item(item.id, {"due_at": new_due.isoformat()}, "postpone", None)
+
+        self.repository.resolve_checkin(checkin_id, "postponed")
+        return self.repository.create_checkin(
+            item.id,
+            f"“{item.title}” è stata posticipata di {days} {'giorno' if days == 1 else 'giorni'}.",
+            f"posticipato di {days} {'giorno' if days == 1 else 'giorni'} dall'utente",
+            float(checkin.get("score") or 1),
+            new_due.astimezone(UTC).isoformat(),
+        )
 
     def validate_actions(self, actions: list[Action]) -> None:
         """Reject an invalid batch before the first write can occur."""

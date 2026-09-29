@@ -94,10 +94,17 @@ async function moveFocus(sourceId,targetId){const ids=focusIds();const source=id
 
 async function loadCheckins() {
   const checkins=await api('/api/checkins'); const stack=$('#checkins');
-  stack.innerHTML=checkins.map(checkin=>`<article class="checkin checkin-${checkin.timing==='due'?'due':'upcoming'}" data-id="${checkin.id}"><small>Forse vale la pena parlarne</small>${escapeHtml(checkin.message)}<br><button>Parliamone</button></article>`).join('');
-  stack.querySelectorAll('button').forEach(button=>button.addEventListener('click',async()=>{
-    const card=button.closest('.checkin'); $('#messageInput').value=card.childNodes[2]?.textContent?.trim()||'Parliamone.';
+  stack.innerHTML=checkins.map(checkin=>`<article class="checkin checkin-${checkin.timing==='due'?'due':'upcoming'}" data-id="${checkin.id}"><small>Forse vale la pena parlarne</small><span class="checkin-message">${escapeHtml(checkin.message)}</span><div class="checkin-actions"><button data-action="talk">Parliamone</button><button class="postpone" data-action="postpone">Posticipa</button></div></article>`).join('');
+  stack.querySelectorAll('[data-action="talk"]').forEach(button=>button.addEventListener('click',async()=>{
+    const card=button.closest('.checkin'); $('#messageInput').value=card.querySelector('.checkin-message')?.textContent?.trim()||'Parliamone.';
     await api(`/api/checkins/${card.dataset.id}/deliver`,{method:'POST'}); card.remove(); $('#messageInput').focus();
+  }));
+  stack.querySelectorAll('[data-action="postpone"]').forEach(button=>button.addEventListener('click',async()=>{
+    const value=window.prompt('Di quanti giorni vuoi posticiparlo?','1');if(value===null)return;
+    if(!/^\d+$/.test(value.trim())||Number(value)<1||Number(value)>365){showToast('Inserisci un numero di giorni tra 1 e 365');return;}
+    button.disabled=true;
+    try{await api(`/api/checkins/${button.closest('.checkin').dataset.id}/postpone`,{method:'POST',body:JSON.stringify({days:Number(value)})});await loadCheckins();showToast('Box posticipato');}
+    catch(error){showToast(error.message);button.disabled=false;}
   }));
 }
 

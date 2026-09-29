@@ -125,6 +125,10 @@ class FocusOrderRequest(BaseModel):
     item_ids: list[str] = Field(default_factory=list, max_length=100)
 
 
+class PostponeRequest(BaseModel):
+    days: int = Field(ge=1, le=365)
+
+
 class ActivityRecord(BaseModel):
     id: str
     item_id: str

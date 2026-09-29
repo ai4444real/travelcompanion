@@ -14,7 +14,7 @@ from app.calendar import GoogleCalendar
 from app.config import get_settings
 from app.db import Database
 from app.domain import ActionExecutor
-from app.models import ActionType, ChatRequest, ChatResponse, FocusOrderRequest, Item, ItemPatch
+from app.models import ActionType, ChatRequest, ChatResponse, FocusOrderRequest, Item, ItemPatch, PostponeRequest
 from app.monitor import Monitor
 from app.operational_state import recurrence_facts
 from app.repository import Repository
@@ -252,6 +252,14 @@ async def calendar_oauth_callback(code: str, state: str):
 async def deliver_checkin(checkin_id: str) -> dict[str, str]:
     repository.deliver_checkin(checkin_id)
     return {"status": "delivered"}
+
+
+@app.post("/api/checkins/{checkin_id}/postpone")
+async def postpone_checkin(checkin_id: str, request: PostponeRequest) -> dict:
+    try:
+        return executor.postpone_checkin(checkin_id, request.days)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.get("/api/audit")

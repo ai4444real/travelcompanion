@@ -38,6 +38,10 @@ h1 { margin:0; font-size:clamp(44px,7vw,67px); line-height:.98; }
 .checkin-due button { background:#814b38; }
 .checkin small { display:block; margin-bottom:6px; color:var(--sage-dark); font-weight:600; text-transform:uppercase; letter-spacing:.1em; font-size:10px; }
 .checkin button { margin-top:12px; border:0; background:var(--sage-dark); color:white; padding:8px 12px; border-radius:8px; }
+.checkin-actions { display:flex; gap:8px; }
+.checkin button.postpone { background:transparent; color:var(--sage-dark); border:1px solid currentColor; }
+.checkin-due button.postpone { color:#814b38; background:rgba(255,255,255,.28); }
+.checkin button:disabled { opacity:.5; cursor:wait; }
 .composer { position:sticky; bottom:16px; margin-top:auto; background:rgba(251,248,242,.94); border:1px solid var(--line); border-radius:18px; padding:12px 58px 8px 16px; box-shadow:0 12px 45px rgba(45,49,44,.1); backdrop-filter:blur(12px); }
 .composer textarea { display:block; width:100%; max-height:160px; resize:none; border:0; outline:0; background:transparent; line-height:1.5; padding:2px 0 4px; }
 .send { position:absolute; right:11px; top:10px; width:38px; height:38px; border:0; border-radius:12px; background:var(--sage-dark); color:white; font-size:20px; }
