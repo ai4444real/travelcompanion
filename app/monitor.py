@@ -152,6 +152,8 @@ class Monitor:
         reason: list[str] = []
 
         effective_due = self._effective_due(item, now)
+        if effective_due and self._period_is_completed(item, effective_due):
+            return None
         if effective_due:
             days = (effective_due - now).total_seconds() / 86400
             if days < 0:
@@ -217,6 +219,23 @@ class Monitor:
         else:
             message = f"È da un po' che non verifichiamo “{item.title}”. È ancora qualcosa che vuoi mantenere attivo?"
         return {"score": round(score, 3), "reason": "; ".join(reason) or "verifica contestuale", "message": message, "target_due_at": effective_due.isoformat() if effective_due else None}
+
+    def _period_is_completed(self, item: Item, due: datetime) -> bool:
+        frequency = (item.recurrence or {}).get("frequency")
+        if frequency not in {"monthly", "yearly", "annual"}:
+            return False
+        target = due.astimezone(self.timezone)
+        for record in self.repository.list_activity_records(item.id):
+            if record.get("record_type") != "occurrence" or not record.get("is_completion", 1):
+                continue
+            completed = self._activity_local_date(record)
+            if not completed:
+                continue
+            if frequency == "monthly" and (completed.year, completed.month) == (target.year, target.month):
+                return True
+            if frequency in {"yearly", "annual"} and completed.year == target.year:
+                return True
+        return False
 
     def pending_checkins(self, now: datetime | None = None) -> list[dict[str, Any]]:
         now = now or datetime.now(UTC)

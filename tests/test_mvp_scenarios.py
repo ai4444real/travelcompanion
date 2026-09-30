@@ -224,6 +224,22 @@ def test_reschedule_monthly_occurrence_preserves_series_and_moves_box(tmp_path):
     assert october.astimezone(ZoneInfo("Europe/Zurich")).date().isoformat() == "2026-11-26"
 
 
+def test_monthly_completion_before_rescheduled_due_closes_same_period(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Backup", "kind": "routine", "recurrence": {"frequency": "monthly", "day_of_month": 28}}, "test", None)
+    old = repo.create_checkin(item.id, "Backup", "test", 1, "2026-09-28T21:59:59+00:00")
+    executor.execute([Action(type=ActionType.RESCHEDULE_OCCURRENCE, item_id=item.id, data={
+        "original_due_at": "2026-09-28T23:59:59+02:00", "target_due_at": "2026-09-30T23:59:59+02:00",
+    }, confidence=1)], "move")
+    executor.execute([Action(type=ActionType.RECORD_ACTIVITY, item_id=item.id, data={
+        "record_type": "occurrence", "period_start": "2026-09-29", "is_completion": True,
+    }, confidence=1)], "done")
+
+    assert repo.list_recurrence_overrides(item.id, status=None)[0]["status"] == "completed"
+    assert repo.pending_checkins() == []
+    assert Monitor(repo, "Europe/Zurich").run(datetime(2026, 9, 30, 8, tzinfo=UTC)) == []
+
+
 def test_reschedule_fixed_weekly_occurrence_suppresses_original_day(tmp_path):
     repo, executor, _ = setup(tmp_path)
     item = repo.create_item({"title": "Richiami", "recurrence": {"frequency": "weekly", "days_of_week": ["thursday"]}}, "test", None)

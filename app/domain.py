@@ -276,9 +276,22 @@ class ActionExecutor:
                 return
         self.repository.record_activity(item.id, data, source_message_id)
         for override in self.repository.list_recurrence_overrides(item.id):
-            effective = self._local_datetime(override["effective_due_at"])
-            if effective.date() == occurrence.date():
+            if self._activity_matches_override(item, occurrence, override):
                 self.repository.set_recurrence_override_status(override["id"], "completed")
+
+    def _activity_matches_override(self, item: Item, occurrence: datetime, override: dict) -> bool:
+        frequency = (item.recurrence or {}).get("frequency")
+        key = str(override.get("occurrence_key") or "")
+        local = occurrence.astimezone(self.timezone)
+        if frequency == "monthly":
+            return key == f"month:{local.year}-{local.month:02d}"
+        if frequency in {"yearly", "annual"}:
+            return key == f"year:{local.year}"
+        if frequency == "weekly" and (item.recurrence or {}).get("times_per_week"):
+            iso = local.isocalendar()
+            return key == f"week:{iso.year}-W{iso.week:02d}"
+        effective = self._local_datetime(override["effective_due_at"])
+        return effective.date() == local.date()
 
     def _local_datetime(self, value: object) -> datetime:
         parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
