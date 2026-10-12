@@ -94,7 +94,7 @@ async function moveFocus(sourceId,targetId){const ids=focusIds();const source=id
 
 async function loadCheckins() {
   const checkins=await api('/api/checkins'); const stack=$('#checkins');
-  stack.innerHTML=checkins.map(checkin=>`<article class="checkin checkin-${checkin.timing==='due'?'due':'upcoming'}" data-id="${checkin.id}"><small>Forse vale la pena parlarne</small><span class="checkin-message">${escapeHtml(checkin.message)}</span><div class="checkin-actions"><button data-action="talk">Parliamone</button><button class="postpone" data-action="postpone">Posticipa</button></div></article>`).join('');
+  stack.innerHTML=checkins.map(checkin=>`<article class="checkin checkin-${checkin.timing==='due'?'due':'upcoming'}" data-id="${checkin.id}"><small>Forse vale la pena parlarne</small><span class="checkin-message">${escapeHtml(checkin.message)}</span><div class="checkin-actions"><button data-action="talk">Parliamone</button><button class="complete" data-action="complete">Completa</button><button class="postpone" data-action="postpone">Posticipa</button></div></article>`).join('');
   stack.querySelectorAll('[data-action="talk"]').forEach(button=>button.addEventListener('click',async()=>{
     const card=button.closest('.checkin'); $('#messageInput').value=card.querySelector('.checkin-message')?.textContent?.trim()||'Parliamone.';
     await api(`/api/checkins/${card.dataset.id}/deliver`,{method:'POST'}); card.remove(); $('#messageInput').focus();
@@ -104,6 +104,11 @@ async function loadCheckins() {
     if(!/^\d+$/.test(value.trim())||Number(value)<1||Number(value)>365){showToast('Inserisci un numero di giorni tra 1 e 365');return;}
     button.disabled=true;
     try{await api(`/api/checkins/${button.closest('.checkin').dataset.id}/postpone`,{method:'POST',body:JSON.stringify({days:Number(value)})});await Promise.all([loadCheckins(),loadItems()]);showToast('Scadenza posticipata');}
+    catch(error){showToast(error.message);button.disabled=false;}
+  }));
+  stack.querySelectorAll('[data-action="complete"]').forEach(button=>button.addEventListener('click',async()=>{
+    button.disabled=true;
+    try{await api(`/api/checkins/${button.closest('.checkin').dataset.id}/complete`,{method:'POST'});await Promise.all([loadCheckins(),loadItems(),loadActivities()]);showToast('Completato');}
     catch(error){showToast(error.message);button.disabled=false;}
   }));
 }

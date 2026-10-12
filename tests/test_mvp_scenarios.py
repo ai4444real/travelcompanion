@@ -299,6 +299,32 @@ def test_repeated_postpone_updates_same_recurring_exception(tmp_path):
     assert repo.pending_checkins() == []
 
 
+def test_complete_box_closes_one_off_item(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Telefonare", "due_at": "2026-10-12T18:00:00+02:00"}, "test", None)
+    checkin = repo.create_checkin(item.id, "Telefonare oggi", "test", 1, "2026-10-12T16:00:00+00:00")
+    result = executor.complete_checkin(checkin["id"])
+    assert result == {"status": "completed", "item_id": item.id, "recurring": False}
+    assert repo.get_item(item.id).status == ItemStatus.COMPLETED
+    assert repo.pending_checkins() == []
+
+
+def test_complete_box_closes_only_current_rescheduled_occurrence(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Backup", "kind": "routine", "recurrence": {"frequency": "monthly", "day_of_month": 28}}, "test", None)
+    executor.execute([Action(type=ActionType.RESCHEDULE_OCCURRENCE, item_id=item.id, data={
+        "original_due_at": "2026-09-28T23:59:59+02:00", "target_due_at": "2026-09-30T23:59:59+02:00",
+    }, confidence=1)], "move")
+    checkin = repo.pending_checkins()[0]
+    result = executor.complete_checkin(checkin["id"])
+    assert result["recurring"] is True
+    assert repo.get_item(item.id).status == ItemStatus.ACTIVE
+    assert repo.get_item(item.id).recurrence == {"frequency": "monthly", "day_of_month": 28}
+    assert repo.list_recurrence_overrides(item.id, status=None)[0]["status"] == "completed"
+    assert repo.list_activity_records(item.id)[0]["is_completion"] == 1
+    assert repo.pending_checkins() == []
+
+
 def test_raw_snapshot_exposes_app_tables_without_configuration(tmp_path):
     repo, _, _ = setup(tmp_path)
     repo.create_item({"title": "Fatture"}, "test", None)

@@ -37,9 +37,11 @@ def test_transparent_and_cancelled_events_do_not_block_time(tmp_path):
     base = {"start": {"dateTime": "2026-09-07T09:00:00+02:00"}, "end": {"dateTime": "2026-09-07T10:00:00+02:00"}}
     service._store_event({**base, "id": "free", "summary": "Promemoria", "status": "confirmed", "transparency": "transparent"})
     service._store_event({**base, "id": "gone", "summary": "Annullato", "status": "cancelled"})
-    events = service.events_between(datetime.now(UTC) - timedelta(days=30), datetime.now(UTC) + timedelta(days=30))
+    window_start = datetime(2026, 9, 1, tzinfo=UTC)
+    window_end = datetime(2026, 9, 30, tzinfo=UTC)
+    events = service.events_between(window_start, window_end)
     assert events == []
-    informational = service.events_between(datetime.now(UTC) - timedelta(days=30), datetime.now(UTC) + timedelta(days=30), include_transparent=True)
+    informational = service.events_between(window_start, window_end, include_transparent=True)
     assert len(informational) == 1
     assert informational[0]["blocks_time"] is False
 

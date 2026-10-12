@@ -262,6 +262,14 @@ async def postpone_checkin(checkin_id: str, request: PostponeRequest) -> dict:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+@app.post("/api/checkins/{checkin_id}/complete")
+async def complete_checkin(checkin_id: str) -> dict:
+    try:
+        return executor.complete_checkin(checkin_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 @app.get("/api/audit")
 async def audit(limit: int = Query(100, ge=1, le=500)) -> list[dict]:
     return repository.audit_log(limit)

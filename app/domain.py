@@ -78,6 +78,36 @@ class ActionExecutor:
             "days": days,
         }
 
+    def complete_checkin(self, checkin_id: str) -> dict:
+        checkin = self.repository.get_checkin(checkin_id)
+        if not checkin or checkin.get("status") != "pending":
+            raise ValueError("Il box non è più attivo")
+        item = self.repository.get_item(checkin.get("item_id")) if checkin.get("item_id") else None
+        if not item:
+            raise ValueError("L'oggetto del box non esiste più")
+
+        if item.recurrence:
+            occurrence_at = checkin.get("target_due_at") or datetime.now(UTC).isoformat()
+            self._record_recurring_once(item, {
+                "record_type": "occurrence",
+                "period_start": occurrence_at,
+                "period_end": occurrence_at,
+                "source_type": "explicit",
+                "is_completion": True,
+                "note": "Occorrenza completata dal box.",
+            }, None)
+            if checkin.get("target_due_at"):
+                target = self._local_datetime(checkin["target_due_at"])
+                for override in self.repository.list_recurrence_overrides(item.id):
+                    if self._local_datetime(override["effective_due_at"]) == target:
+                        self.repository.set_recurrence_override_status(override["id"], "completed")
+            self.repository.resolve_pending_checkins(item.id)
+        else:
+            self.repository.update_item(item.id, {"status": ItemStatus.COMPLETED.value}, "checkin", None)
+            self.repository.resolve_pending_checkins(item.id)
+
+        return {"status": "completed", "item_id": item.id, "recurring": bool(item.recurrence)}
+
     def validate_actions(self, actions: list[Action]) -> None:
         """Reject an invalid batch before the first write can occur."""
         for action in actions:

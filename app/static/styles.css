@@ -38,7 +38,8 @@ h1 { margin:0; font-size:clamp(44px,7vw,67px); line-height:.98; }
 .checkin-due button { background:#814b38; }
 .checkin small { display:block; margin-bottom:6px; color:var(--sage-dark); font-weight:600; text-transform:uppercase; letter-spacing:.1em; font-size:10px; }
 .checkin button { margin-top:12px; border:0; background:var(--sage-dark); color:white; padding:8px 12px; border-radius:8px; }
-.checkin-actions { display:flex; gap:8px; }
+.checkin-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.checkin button.complete,.checkin-due button.complete { background:var(--sage); color:white; }
 .checkin button.postpone { background:transparent; color:var(--sage-dark); border:1px solid currentColor; }
 .checkin-due button.postpone { color:#814b38; background:rgba(255,255,255,.28); }
 .checkin button:disabled { opacity:.5; cursor:wait; }
