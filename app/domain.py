@@ -26,7 +26,7 @@ class ActionExecutor:
                 changed[item.id] = item
         return list(changed.values())
 
-    def postpone_checkin(self, checkin_id: str, days: int) -> dict:
+    def postpone_checkin(self, checkin_id: str, days: int, working_days: bool = False) -> dict:
         checkin = self.repository.get_checkin(checkin_id)
         if not checkin or checkin.get("status") != "pending":
             raise ValueError("Il box non è più attivo")
@@ -37,7 +37,7 @@ class ActionExecutor:
         if not raw_due:
             raise ValueError("Questo box non ha una data da posticipare")
         current_due = self._local_datetime(raw_due)
-        new_due = current_due + timedelta(days=days)
+        new_due = self._add_working_days(current_due, days) if working_days else current_due + timedelta(days=days)
 
         if item.recurrence:
             existing = next(
@@ -76,7 +76,18 @@ class ActionExecutor:
             "item_id": item.id,
             "due_at": expected.isoformat(),
             "days": days,
+            "working_days": working_days,
         }
+
+    @staticmethod
+    def _add_working_days(value: datetime, days: int) -> datetime:
+        result = value
+        remaining = days
+        while remaining:
+            result += timedelta(days=1)
+            if result.weekday() < 5:
+                remaining -= 1
+        return result
 
     def complete_checkin(self, checkin_id: str) -> dict:
         checkin = self.repository.get_checkin(checkin_id)

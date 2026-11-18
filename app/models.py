@@ -127,6 +127,7 @@ class FocusOrderRequest(BaseModel):
 
 class PostponeRequest(BaseModel):
     days: int = Field(ge=1, le=365)
+    working_days: bool = False
 
 
 class ActivityRecord(BaseModel):

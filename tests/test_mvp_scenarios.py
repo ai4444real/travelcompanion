@@ -281,6 +281,27 @@ def test_postpone_one_off_moves_deadline_and_replaces_box(tmp_path):
     assert repo.pending_checkins() == []
 
 
+def test_postpone_by_working_days_skips_weekend(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Telefonare", "due_at": "2026-10-16T18:00:00+02:00"}, "test", None)
+    box = repo.create_checkin(item.id, "Telefonare venerdì", "test", 0.8, "2026-10-16T16:00:00+00:00")
+    result = executor.postpone_checkin(box["id"], 3, working_days=True)
+    assert result["due_at"] == "2026-10-21T16:00:00+00:00"
+    assert result["working_days"] is True
+    assert repo.get_item(item.id).due_at.isoformat() == "2026-10-21T16:00:00+00:00"
+
+
+def test_postpone_recurring_occurrence_by_working_day_creates_exception(tmp_path):
+    repo, executor, _ = setup(tmp_path)
+    item = repo.create_item({"title": "Backup", "recurrence": {"frequency": "monthly", "day_of_month": 16}}, "test", None)
+    box = repo.create_checkin(item.id, "Backup venerdì", "test", 0.8, "2026-10-16T21:59:59+00:00")
+    executor.postpone_checkin(box["id"], 1, working_days=True)
+    override = repo.list_recurrence_overrides(item.id)[0]
+    assert override["occurrence_key"] == "month:2026-10"
+    assert override["effective_due_at"] == "2026-10-19T21:59:59+00:00"
+    assert repo.get_item(item.id).recurrence == {"frequency": "monthly", "day_of_month": 16}
+
+
 def test_repeated_postpone_updates_same_recurring_exception(tmp_path):
     repo, executor, _ = setup(tmp_path)
     item = repo.create_item({"title": "Backup", "recurrence": {"frequency": "monthly", "day_of_month": 28}}, "test", None)

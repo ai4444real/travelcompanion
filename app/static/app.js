@@ -100,10 +100,11 @@ async function loadCheckins() {
     await api(`/api/checkins/${card.dataset.id}/deliver`,{method:'POST'}); card.remove(); $('#messageInput').focus();
   }));
   stack.querySelectorAll('[data-action="postpone"]').forEach(button=>button.addEventListener('click',async()=>{
-    const value=window.prompt('Di quanti giorni vuoi posticiparlo?','1');if(value===null)return;
-    if(!/^\d+$/.test(value.trim())||Number(value)<1||Number(value)>365){showToast('Inserisci un numero di giorni tra 1 e 365');return;}
+    const value=window.prompt('Di quanti giorni vuoi posticiparlo? Usa 3 per giorni normali, 3w per giorni lavorativi.','1');if(value===null)return;
+    const match=value.trim().toLowerCase().match(/^(\d+)(w)?$/);const days=match?Number(match[1]):0;
+    if(!match||days<1||days>365){showToast('Inserisci da 1 a 365, eventualmente seguito da w');return;}
     button.disabled=true;
-    try{await api(`/api/checkins/${button.closest('.checkin').dataset.id}/postpone`,{method:'POST',body:JSON.stringify({days:Number(value)})});await Promise.all([loadCheckins(),loadItems()]);showToast('Scadenza posticipata');}
+    try{await api(`/api/checkins/${button.closest('.checkin').dataset.id}/postpone`,{method:'POST',body:JSON.stringify({days,working_days:Boolean(match[2])})});await Promise.all([loadCheckins(),loadItems()]);showToast('Scadenza posticipata');}
     catch(error){showToast(error.message);button.disabled=false;}
   }));
   stack.querySelectorAll('[data-action="complete"]').forEach(button=>button.addEventListener('click',async()=>{

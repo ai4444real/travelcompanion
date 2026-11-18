@@ -257,7 +257,7 @@ async def deliver_checkin(checkin_id: str) -> dict[str, str]:
 @app.post("/api/checkins/{checkin_id}/postpone")
 async def postpone_checkin(checkin_id: str, request: PostponeRequest) -> dict:
     try:
-        return executor.postpone_checkin(checkin_id, request.days)
+        return executor.postpone_checkin(checkin_id, request.days, request.working_days)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
